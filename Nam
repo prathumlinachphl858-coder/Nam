@@ -1,0 +1,300 @@
+-- ================= LOAD RAYFIELD =================
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "NamX Control Hub",
+    LoadingTitle = "NamX Control Hub",
+    LoadingSubtitle = "by Nam",
+    ConfigurationSaving = { Enabled = false },
+    KeySystem = false
+})
+
+local ESPTab   = Window:CreateTab("ESP", 4483362458)
+local PerfTab  = Window:CreateTab("Performance", 4483362458)
+local AimTab   = Window:CreateTab("Aimbot", 4483362458)
+local MiscTab  = Window:CreateTab("Misc", 4483362458)
+
+-- ================= SERVICES ======================
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local Lighting    = game:GetService("Lighting")
+local Camera      = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- =================== AIMBOT ======================
+local aimPartName = "Head"
+local FieldOfView = 100
+local TeamCheck = true
+local autoLockEnabled = false
+local hitboxSize = Vector3.new(4,4,4)
+
+local circle = Drawing.new("Circle")
+circle.Visible = false
+circle.Radius = FieldOfView
+circle.Color = Color3.fromRGB(0,255,0)
+circle.Thickness = 1
+circle.Filled = false
+
+RunService.RenderStepped:Connect(function()
+    circle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+end)
+
+local function IsVisible(part)
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(
+        Camera.CFrame.Position,
+        (part.Position - Camera.CFrame.Position).Unit * 500,
+        params
+    )
+    return result and result.Instance:IsDescendantOf(part.Parent)
+end
+
+local function GetClosestEnemy()
+    local closest, shortest = nil, FieldOfView
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(aimPartName) then
+            if not TeamCheck or plr.Team ~= LocalPlayer.Team then
+                local hum = plr.Character:FindFirstChild("Humanoid")
+                if hum and hum.Health > 0 then
+                    local part = plr.Character[aimPartName]
+                    local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    local dist = (Vector2.new(pos.X,pos.Y) - circle.Position).Magnitude
+                    if onScreen and dist < shortest and IsVisible(part) then
+                        shortest = dist
+                        closest = part
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    if autoLockEnabled then
+        local target = GetClosestEnemy()
+        if target then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+        end
+    end
+end)
+
+-- ================= HITBOX =================
+local function applyHitbox(char)
+    local plr = Players:GetPlayerFromCharacter(char)
+    if not plr or (TeamCheck and plr.Team == LocalPlayer.Team) then return end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.Size = hitboxSize
+        hrp.Transparency = 0.7
+        hrp.Material = Enum.Material.Neon
+        hrp.Color = Color3.fromRGB(255,0,0)
+    end
+end
+
+for _,plr in ipairs(Players:GetPlayers()) do
+    if plr.Character then applyHitbox(plr.Character) end
+    plr.CharacterAdded:Connect(applyHitbox)
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(applyHitbox)
+end)
+
+-- ================= AIMBOT UI =================
+AimTab:CreateToggle({
+    Name = "Enable Aimbot",
+    CurrentValue = false,
+    Callback = function(v)
+        autoLockEnabled = v
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Show FOV Circle",
+    CurrentValue = false,
+    Callback = function(v)
+        circle.Visible = v
+    end
+})
+
+AimTab:CreateSlider({
+    Name = "FOV Radius",
+    Range = {30,300},
+    Increment = 5,
+    CurrentValue = FieldOfView,
+    Callback = function(v)
+        FieldOfView = v
+        circle.Radius = v
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
+    Callback = function(v)
+        TeamCheck = v
+    end
+})
+
+AimTab:CreateButton({
+    Name = "Switch Aim Part (Head / Body)",
+    Callback = function()
+        aimPartName = (aimPartName == "Head") and "HumanoidRootPart" or "Head"
+        Rayfield:Notify({
+            Title = "Aim Part",
+            Content = "Now aiming: "..aimPartName,
+            Duration = 2
+        })
+    end
+})
+
+AimTab:CreateSlider({
+    Name = "Hitbox Size",
+    Range = {1,10},
+    Increment = 1,
+    CurrentValue = hitboxSize.X,
+    Callback = function(v)
+        hitboxSize = Vector3.new(v,v,v)
+        for _,plr in ipairs(Players:GetPlayers()) do
+            if plr.Character then applyHitbox(plr.Character) end
+        end
+    end
+})
+
+-- ================== INSTANT INTERACT ==================
+local instantInteractEnabled = false
+local function applyInstantInteract()
+    for _, v in ipairs(game:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            v.HoldDuration = 0
+        end
+    end
+end
+
+game.DescendantAdded:Connect(function(v)
+    if instantInteractEnabled and v:IsA("ProximityPrompt") then
+        v.HoldDuration = 0
+    end
+end)
+
+MiscTab:CreateToggle({
+    Name = "Instant Interact (No Hold)",
+    CurrentValue = false,
+    Callback = function(v)
+        instantInteractEnabled = v
+        if v then
+            applyInstantInteract()
+        end
+    end
+})
+
+-- ================== INVISIBLE SCRIPT ==================
+local invisibleLoaded = false
+MiscTab:CreateButton({
+    Name = "Enable Invisible",
+    Callback = function()
+        if invisibleLoaded then
+            Rayfield:Notify({Title="Invisible",Content="Already loaded",Duration=2})
+            return
+        end
+        invisibleLoaded = true
+        loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Invisible-script-20557"))()
+        Rayfield:Notify({Title="Invisible",Content="Loaded successfully",Duration=2})
+    end
+})
+
+-- ================== NO FOG ==================
+local noFogEnabled = false
+local savedFog = {FogStart=Lighting.FogStart,FogEnd=Lighting.FogEnd,Atmosphere=Lighting:FindFirstChildOfClass("Atmosphere") and {Density=Lighting:FindFirstChildOfClass("Atmosphere").Density,Haze=Lighting:FindFirstChildOfClass("Atmosphere").Haze} or nil}
+
+local function applyNoFog(state)
+    noFogEnabled = state
+    if state then
+        Lighting.FogStart = 0
+        Lighting.FogEnd = 1e9
+        local atmo = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atmo then atmo.Density=0 atmo.Haze=0 end
+    else
+        Lighting.FogStart = savedFog.FogStart
+        Lighting.FogEnd = savedFog.FogEnd
+        local atmo = Lighting:FindFirstChildOfClass("Atmosphere")
+        if atmo and savedFog.Atmosphere then
+            atmo.Density = savedFog.Atmosphere.Density
+            atmo.Haze = savedFog.Atmosphere.Haze
+        end
+    end
+end
+
+PerfTab:CreateToggle({
+    Name = "No Fog",
+    CurrentValue = false,
+    Callback = function(v)
+        applyNoFog(v)
+    end
+})
+
+-- ================== UI THEME ==================
+PerfTab:CreateSection("UI Theme")
+local themes = {"Dark","Light","Ocean","Red","Purple"}
+for _,th in ipairs(themes) do
+    PerfTab:CreateButton({
+        Name = th.." Theme",
+        Callback = function()
+            Rayfield:ChangeTheme(th)
+        end
+    })
+end
+
+-- ================== ESP HIGHLIGHT ==================
+local ESPEnabled = false
+local Highlights = {}
+
+local function updateESP()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = plr.Character.HumanoidRootPart
+            if not Highlights[plr] then
+                local hl = Instance.new("Highlight")
+                hl.Name = "NamX_Highlight"
+                hl.Adornee = hrp
+                hl.Parent = workspace
+                hl.FillTransparency = 0.5
+                hl.OutlineTransparency = 0
+                Highlights[plr] = hl
+            end
+            if plr.Team == LocalPlayer.Team then
+                Highlights[plr].FillColor = Color3.fromRGB(0,255,0)
+                Highlights[plr].OutlineColor = Color3.fromRGB(0,255,0)
+            else
+                Highlights[plr].FillColor = Color3.fromRGB(255,0,0)
+                Highlights[plr].OutlineColor = Color3.fromRGB(255,0,0)
+            end
+            Highlights[plr].Enabled = ESPEnabled
+        end
+    end
+end
+
+Players.PlayerRemoving:Connect(function(plr)
+    if Highlights[plr] then
+        Highlights[plr]:Destroy()
+        Highlights[plr] = nil
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    if ESPEnabled then
+        updateESP()
+    end
+end)
+
+ESPTab:CreateToggle({
+    Name = "Enable ESP",
+    CurrentValue = false,
+    Callback = function(v)
+        ESPEnabled = v
+    end
+})
