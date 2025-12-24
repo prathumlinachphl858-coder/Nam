@@ -256,6 +256,7 @@ local function updateESP()
                 hl.OutlineTransparency = 0
                 Highlights[plr] = hl
             end
+            -- แยกสีตามทีม
             if plr.Team == LocalPlayer.Team then
                 Highlights[plr].FillColor = Color3.fromRGB(0,255,0)
                 Highlights[plr].OutlineColor = Color3.fromRGB(0,255,0)
@@ -289,9 +290,9 @@ ESPTab:CreateToggle({
     end
 })
 
--- ================== BUILD TAB: STEPS (FIXED) ==================
+-- ================== BUILD TAB: STEPS ==================
 local stepsEnabled = false
-local stepSize = Vector3.new(4, 1, 4) -- ขนาดมาตรฐาน
+local stepSize = Vector3.new(4, 1, 4) -- ขนาดพาท
 local stepHeight = 1
 local stepDistance = 4
 
