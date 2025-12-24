@@ -13,6 +13,7 @@ local ESPTab   = Window:CreateTab("ESP", 4483362458)
 local PerfTab  = Window:CreateTab("Performance", 4483362458)
 local AimTab   = Window:CreateTab("Aimbot", 4483362458)
 local MiscTab  = Window:CreateTab("Misc", 4483362458)
+local BuildTab = Window:CreateTab("Build", 4483362458) -- สำหรับขั้นบันได
 
 -- ================= SERVICES ======================
 local Players     = game:GetService("Players")
@@ -20,6 +21,7 @@ local RunService  = game:GetService("RunService")
 local Lighting    = game:GetService("Lighting")
 local Camera      = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
 
 -- =================== AIMBOT ======================
 local aimPartName = "Head"
@@ -237,18 +239,6 @@ PerfTab:CreateToggle({
     end
 })
 
--- ================== UI THEME ==================
-PerfTab:CreateSection("UI Theme")
-local themes = {"Dark","Light","Ocean","Red","Purple"}
-for _,th in ipairs(themes) do
-    PerfTab:CreateButton({
-        Name = th.." Theme",
-        Callback = function()
-            Rayfield:ChangeTheme(th)
-        end
-    })
-end
-
 -- ================== ESP HIGHLIGHT ==================
 local ESPEnabled = false
 local Highlights = {}
@@ -298,3 +288,31 @@ ESPTab:CreateToggle({
         ESPEnabled = v
     end
 })
+
+-- ================== BUILD TAB: STEPS ==================
+local stepsEnabled = false
+local stepSize = Vector3.new(4,1,4) -- ขนาดมาตรฐาน
+
+BuildTab:CreateToggle({
+    Name = "Enable Steps",
+    CurrentValue = false,
+    Callback = function(v)
+        stepsEnabled = v
+    end
+})
+
+RunService.RenderStepped:Connect(function()
+    if stepsEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        local step = Instance.new("Part")
+        step.Size = stepSize
+        step.Position = hrp.Position - Vector3.new(0, stepSize.Y/2 + 1, 0)
+        step.Anchored = true
+        step.CanCollide = true
+        step.Material = Enum.Material.SmoothPlastic
+        step.Color = Color3.fromRGB(150,150,150)
+        step.Parent = workspace
+        -- ลบอัตโนมัติหลัง 5 วิ
+        game:GetService("Debris"):AddItem(step,5)
+    end
+end)
