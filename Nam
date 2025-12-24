@@ -289,30 +289,60 @@ ESPTab:CreateToggle({
     end
 })
 
--- ================== BUILD TAB: STEPS ==================
+-- ================== BUILD TAB: STEPS (FIXED) ==================
 local stepsEnabled = false
-local stepSize = Vector3.new(4,1,4) -- ขนาดมาตรฐาน
+local stepSize = Vector3.new(4, 1, 4) -- ขนาดมาตรฐาน
+local stepHeight = 1
+local stepDistance = 4
+
+local lastStepPos = nil
+local currentStepY = nil
 
 BuildTab:CreateToggle({
     Name = "Enable Steps",
     CurrentValue = false,
     Callback = function(v)
         stepsEnabled = v
+        lastStepPos = nil
+        currentStepY = nil
     end
 })
 
-RunService.RenderStepped:Connect(function()
-    if stepsEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local hrp = LocalPlayer.Character.HumanoidRootPart
+RunService.Heartbeat:Connect(function()
+    if not stepsEnabled then return end
+    if not LocalPlayer.Character then return end
+
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    if not lastStepPos then
+        lastStepPos = hrp.Position
+        currentStepY = hrp.Position.Y - 3
+        return
+    end
+
+    local horizontalMove =
+        Vector3.new(hrp.Position.X, 0, hrp.Position.Z) -
+        Vector3.new(lastStepPos.X, 0, lastStepPos.Z)
+
+    if horizontalMove.Magnitude >= stepDistance then
+        currentStepY += stepHeight
+
         local step = Instance.new("Part")
         step.Size = stepSize
-        step.Position = hrp.Position - Vector3.new(0, stepSize.Y/2 + 1, 0)
         step.Anchored = true
         step.CanCollide = true
         step.Material = Enum.Material.SmoothPlastic
         step.Color = Color3.fromRGB(150,150,150)
+        step.Position = Vector3.new(
+            hrp.Position.X,
+            currentStepY,
+            hrp.Position.Z
+        )
         step.Parent = workspace
-        -- ลบอัตโนมัติหลัง 5 วิ
-        game:GetService("Debris"):AddItem(step,5)
+
+        game:GetService("Debris"):AddItem(step, 5)
+
+        lastStepPos = hrp.Position
     end
 end)
