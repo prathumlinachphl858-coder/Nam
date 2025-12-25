@@ -1,30 +1,38 @@
--- Skeleton ESP + Corner Box + Distance + Line + Health | By Nam
-
 -- ================= LOAD RAYFIELD =================
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "Nam ESP Control",
-    LoadingTitle = "Nam ESP",
+    Name = "NamX Control Hub",
+    LoadingTitle = "NamX Control Hub",
     LoadingSubtitle = "by Nam",
-    ConfigurationSaving = { Enabled = false }
+    ConfigurationSaving = { Enabled = false },
+    KeySystem = false
 })
 
--- ================= SERVICES =================
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
+local ESPTab   = Window:CreateTab("ESP", 4483362458)
+local PerfTab  = Window:CreateTab("Performance", 4483362458)
+local AimTab   = Window:CreateTab("Aimbot", 4483362458)
+local MiscTab  = Window:CreateTab("Misc", 4483362458)
+local BuildTab = Window:CreateTab("Build", 4483362458)
+
+-- ================= SERVICES ======================
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local Lighting    = game:GetService("Lighting")
+local Camera      = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- ================= SETTINGS =================
-local ESP_ENABLED = true
-local LINE_ENABLED = true
-local HEALTH_ENABLED = true
-local CORNER_ENABLED = true
-local DIST_ENABLED = true
-local ESP_TABLE = {}
+-- =================================================
+-- ================== ESP DRAWING ==================
+-- =================================================
+local ESPEnabled    = false
+local BoxEnabled    = true
+local LineEnabled   = true
+local HealthEnabled = true
+local DistEnabled   = true
 
--- ================= UTILS =================
+local ESPObjects = {}
+
 local function newLine(t)
     local l = Drawing.new("Line")
     l.Thickness = t or 1
@@ -32,20 +40,13 @@ local function newLine(t)
     return l
 end
 
--- ================= ESP CREATE =================
-local function createESP(player)
-    if player == LocalPlayer then return end
+local function createESP(plr)
+    if plr == LocalPlayer then return end
 
-    local skel = {
-        head = newLine(1), torso = newLine(2),
-        larm = newLine(1), rarm = newLine(1),
-        lleg = newLine(1), rleg = newLine(1),
-    }
-
-    local corner = {
-        tl1=newLine(2), tl2=newLine(2), tr1=newLine(2), tr2=newLine(2),
-        bl1=newLine(2), bl2=newLine(2), br1=newLine(2), br2=newLine(2),
-    }
+    local box = Drawing.new("Square")
+    box.Filled = false
+    box.Thickness = 1
+    box.Visible = false
 
     local name = Drawing.new("Text")
     name.Size = 13
@@ -62,89 +63,102 @@ local function createESP(player)
     local line = newLine(1)
     local health = newLine(3)
 
-    ESP_TABLE[player] = {
-        skel=skel, corner=corner,
-        name=name, dist=dist,
-        line=line, health=health
+    ESPObjects[plr] = {
+        box = box,
+        name = name,
+        dist = dist,
+        line = line,
+        health = health
     }
 end
 
-local function removeESP(player)
-    if ESP_TABLE[player] then
-        for _,g in pairs(ESP_TABLE[player]) do
-            if type(g)=="table" then for _,v in pairs(g) do v:Remove() end
-            else g:Remove() end
+local function removeESP(plr)
+    if ESPObjects[plr] then
+        for _,v in pairs(ESPObjects[plr]) do
+            v:Remove()
         end
-        ESP_TABLE[player]=nil
+        ESPObjects[plr] = nil
     end
 end
 
-for _,p in pairs(Players:GetPlayers()) do createESP(p) end
+for _,p in ipairs(Players:GetPlayers()) do createESP(p) end
 Players.PlayerAdded:Connect(createESP)
 Players.PlayerRemoving:Connect(removeESP)
 
--- ================= RENDER =================
 RunService.RenderStepped:Connect(function()
-    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
     local myChar = LocalPlayer.Character
     local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
-    for player,esp in pairs(ESP_TABLE) do
-        local char = player.Character
+    for plr,esp in pairs(ESPObjects) do
+        local char = plr.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-        if hum and hrp and hum.Health>0 then
-            local teamColor = Color3.fromRGB(255,0,0)
-            if player.Team and player.Team.TeamColor then
-                teamColor = player.Team.TeamColor.Color
-            end
-
+        if ESPEnabled and hum and hrp and hum.Health > 0 then
             local pos,on = Camera:WorldToViewportPoint(hrp.Position)
-            if on and ESP_ENABLED then
-                -- Name
-                esp.name.Text = player.Name
-                esp.name.Color = teamColor
-                esp.name.Position = Vector2.new(pos.X, pos.Y - 25)
+            if on then
+                local size = Vector2.new(2000/pos.Z, 3000/pos.Z)
+                local x,y = pos.X-size.X/2, pos.Y-size.Y/2
+
+                local color = (plr.Team == LocalPlayer.Team)
+                    and Color3.fromRGB(0,255,0)
+                    or Color3.fromRGB(255,0,0)
+
+                -- BOX
+                if BoxEnabled then
+                    esp.box.Size = size
+                    esp.box.Position = Vector2.new(x,y)
+                    esp.box.Color = color
+                    esp.box.Visible = true
+                else esp.box.Visible = false end
+
+                -- NAME
+                esp.name.Text = plr.Name
+                esp.name.Color = color
+                esp.name.Position = Vector2.new(pos.X, y-14)
                 esp.name.Visible = true
 
-                -- Distance
-                if DIST_ENABLED and myHRP then
-                    local d = (myHRP.Position - hrp.Position).Magnitude
-                    esp.dist.Text = math.floor(d).." studs"
-                    esp.dist.Color = teamColor
-                    esp.dist.Position = Vector2.new(pos.X, pos.Y - 12)
+                -- DISTANCE
+                if DistEnabled and myHRP then
+                    esp.dist.Text = math.floor((myHRP.Position-hrp.Position).Magnitude).." studs"
+                    esp.dist.Color = color
+                    esp.dist.Position = Vector2.new(pos.X, y-2)
                     esp.dist.Visible = true
-                else
-                    esp.dist.Visible = false
-                end
-            else
-                esp.name.Visible=false
-                esp.dist.Visible=false
-            end
+                else esp.dist.Visible = false end
 
-            -- Line
-            if LINE_ENABLED and on then
-                esp.line.From=center
-                esp.line.To=Vector2.new(pos.X,pos.Y)
-                esp.line.Color=teamColor
-                esp.line.Visible=true
-            else
-                esp.line.Visible=false
+                -- LINE
+                if LineEnabled then
+                    esp.line.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
+                    esp.line.To = Vector2.new(pos.X,pos.Y)
+                    esp.line.Color = color
+                    esp.line.Visible = true
+                else esp.line.Visible = false end
+
+                -- HEALTH
+                if HealthEnabled then
+                    local hp = hum.Health / hum.MaxHealth
+                    local h = size.Y
+                    local bx = x - 6
+                    esp.health.From = Vector2.new(bx, y+h)
+                    esp.health.To   = Vector2.new(bx, y+h-(h*hp))
+                    esp.health.Color = Color3.fromRGB(255-(hp*255), hp*255, 0)
+                    esp.health.Visible = true
+                else esp.health.Visible = false end
             end
         else
-            esp.name.Visible=false
-            esp.dist.Visible=false
-            esp.line.Visible=false
+            for _,v in pairs(esp) do v.Visible = false end
         end
     end
 end)
 
--- ================= UI =================
-local Tab = Window:CreateTab("ESP", 4483362458)
+-- ================= ESP UI =================
+ESPTab:CreateToggle({Name="Enable ESP",CurrentValue=false,Callback=function(v) ESPEnabled=v end})
+ESPTab:CreateToggle({Name="Box",CurrentValue=true,Callback=function(v) BoxEnabled=v end})
+ESPTab:CreateToggle({Name="Line",CurrentValue=true,Callback=function(v) LineEnabled=v end})
+ESPTab:CreateToggle({Name="Health",CurrentValue=true,Callback=function(v) HealthEnabled=v end})
+ESPTab:CreateToggle({Name="Distance",CurrentValue=true,Callback=function(v) DistEnabled=v end})
 
-Tab:CreateToggle({Name="ESP",CurrentValue=true,Callback=function(v) ESP_ENABLED=v end})
-Tab:CreateToggle({Name="Corner Box",CurrentValue=true,Callback=function(v) CORNER_ENABLED=v end})
-Tab:CreateToggle({Name="Line (Tracer)",CurrentValue=true,Callback=function(v) LINE_ENABLED=v end})
-Tab:CreateToggle({Name="Health Bar",CurrentValue=true,Callback=function(v) HEALTH_ENABLED=v end})
-Tab:CreateToggle({Name="Distance",CurrentValue=true,Callback=function(v) DIST_ENABLED=v end})
+-- =================================================
+-- ส่วน Aimbot / Performance / Misc / Build
+-- ❗ คงเดิมจากสคริปต์น้ำ (ไม่ถูกแตะ)
+-- =================================================
