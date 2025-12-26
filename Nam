@@ -1,6 +1,6 @@
 --==================================================
 -- NamX Hub | Rayfield Core
--- Version : v1.6
+-- Version : v1.6.1
 -- Author  : Nam
 --==================================================
 
@@ -16,7 +16,7 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 --==================================================
--- LOAD RAYFIELD (UI ต้องอยู่ก่อน)
+-- LOAD RAYFIELD (UI อยู่ก่อนเสมอ)
 --==================================================
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
@@ -58,7 +58,6 @@ FOVCircle.Filled = false
 FOVCircle.Visible = false
 FOVCircle.Color = Color3.fromRGB(255,255,255)
 
---================ FUNCTIONS =====================
 local function isVisible(targetPart)
     local origin = Camera.CFrame.Position
     local direction = (targetPart.Position - origin)
@@ -147,7 +146,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
---================ UI =====================
 AimbotTab:CreateToggle({Name="Enable Aimbot",CurrentValue=false,Callback=function(v) AimbotConfig.Enabled=v end})
 AimbotTab:CreateDropdown({Name="Target Part",Options={"Head","HumanoidRootPart"},CurrentOption="Head",Callback=function(v) AimbotConfig.TargetPart=v end})
 AimbotTab:CreateSlider({Name="FOV Size",Range={50,400},Increment=5,CurrentValue=120,Callback=function(v) AimbotConfig.FOV=v end})
@@ -184,7 +182,6 @@ local function getTeamColor(player)
     end
 end
 
---================ ESP / HealthBar FUNCTIONS =====================
 local function createESP(player)
     if player == LocalPlayer then return end
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
@@ -269,6 +266,7 @@ local function updateESP()
             local distance = (Camera.CFrame.Position - hrp.Position).Magnitude
             local color = getTeamColor(player)
 
+            -- Box
             if obj.Box then
                 local size = math.clamp(3000/distance,20,80)
                 obj.Box.Size = Vector2.new(size,size)
@@ -277,28 +275,28 @@ local function updateESP()
                 obj.Box.Visible = ESPConfig.Box and onScreen
             end
 
+            -- Skeleton
             if obj.Skeleton and ESPConfig.Skeleton then
                 local function getPartPos(name)
                     local p = char:FindFirstChild(name)
                     if p then
-                        local screenPos,_ = Camera:WorldToViewportPoint(p.Position)
-                        return Vector2.new(screenPos.X,screenPos.Y)
+                        local screenPos, onScreen = Camera:WorldToViewportPoint(p.Position)
+                        return Vector2.new(screenPos.X,screenPos.Y), onScreen
                     end
-                    return Vector2.new(0,0)
+                    return Vector2.new(0,0), false
                 end
-                local lines=obj.Skeleton
-                for i,l in ipairs(lines) do
-                    local fromPos = getPartPos(l[1])
-                    local toPos = fromPos
-                    if i==1 then toPos=getPartPos("UpperTorso") end
-                    if i==2 then toPos=getPartPos("LowerTorso") end
-                    l[2].From=fromPos
-                    l[2].To=toPos
-                    l[2].Color=color
-                    l[2].Visible=ESPConfig.Skeleton
+
+                for _, lineData in ipairs(obj.Skeleton) do
+                    local fromPos, fromScreen = getPartPos(lineData[1])
+                    local toPos = fromPos -- ต่อพาร์ตตาม Skeleton logic
+                    lineData[2].From = fromPos
+                    lineData[2].To = toPos
+                    lineData[2].Color = color
+                    lineData[2].Visible = ESPConfig.Skeleton and fromScreen
                 end
             end
 
+            -- Line
             if obj.Line then
                 local screenCenter = Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
                 obj.Line.From = screenCenter
@@ -307,6 +305,7 @@ local function updateESP()
                 obj.Line.Visible = ESPConfig.Line and onScreen
             end
 
+            -- Name
             if obj.NameText then
                 obj.NameText.Text = player.Name
                 obj.NameText.Position = Vector2.new(pos.X,pos.Y-20)
@@ -314,6 +313,7 @@ local function updateESP()
                 obj.NameText.Visible = ESPConfig.Name and onScreen
             end
 
+            -- Distance
             if obj.DistanceText then
                 obj.DistanceText.Text = string.format("[%.0f]",distance)
                 obj.DistanceText.Position = Vector2.new(pos.X,pos.Y-10)
@@ -344,14 +344,13 @@ local function updateESP()
             bar.Size = Vector2.new(barWidth, barHeight*hpPercent)
             bar.Position = Vector2.new(pos.X+25,pos.Y+barHeight*(1-hpPercent)/2 - barHeight/2)
             bar.Color = Color3.fromRGB(255*(1-hpPercent),255*hpPercent,0)
-            bar.Visible = ESPConfig.HealthBar
+            bar.Visible = ESPConfig.HealthBar and onScreen
         else
             bar.Visible=false
         end
     end
 end
 
---================ ENABLE/DISABLE =====================
 local function enableESPLoop()
     for _,plr in ipairs(Players:GetPlayers()) do createESP(plr); createHealthBar(plr) end
     ESPConnection = RunService.RenderStepped:Connect(updateESP)
@@ -367,4 +366,4 @@ VisualTab:CreateToggle({Name="ESP Skeleton",CurrentValue=false,Callback=function
 VisualTab:CreateToggle({Name="ESP Line",CurrentValue=false,Callback=function(v) ESPConfig.Line=v end})
 VisualTab:CreateToggle({Name="ESP Name",CurrentValue=false,Callback=function(v) ESPConfig.Name=v end})
 VisualTab:CreateToggle({Name="ESP Distance",CurrentValue=false,Callback=function(v) ESPConfig.Distance=v end})
-VisualTab:CreateToggle({Name="ESP Health Bar",CurrentValue=false,Callback=function(v) ESPConfig.HealthBar=v end})
+VisualTab:CreateToggle({Name="ESP Health Bar",CurrentValue=false,Callback=function(v) ESPConfig.HealthBar=v end
