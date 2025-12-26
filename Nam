@@ -10,10 +10,9 @@ local Window = Rayfield:CreateWindow({
 })
 
 local ESPTab   = Window:CreateTab("ESP", 4483362458)
-local PerfTab  = Window:CreateTab("Performance", 4483362458)
 local AimTab   = Window:CreateTab("Aimbot", 4483362458)
+local PerfTab  = Window:CreateTab("Performance", 4483362458)
 local MiscTab  = Window:CreateTab("Misc", 4483362458)
-local BuildTab = Window:CreateTab("Build", 4483362458)
 
 -- ================= SERVICES =================
 local Players = game:GetService("Players")
@@ -21,7 +20,6 @@ local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 local Lighting = game:GetService("Lighting")
-local Debris = game:GetService("Debris")
 
 -- =================================================
 -- ======================= ESP =====================
@@ -31,38 +29,17 @@ local BOX_ENABLED = true
 local LINE_ENABLED = true
 local HEALTH_ENABLED = true
 local DIST_ENABLED = true
-local SKELETON_ENABLED = false
+local SKELETON_ENABLED = true
+local TEAM_CHECK_ESP = true
 
 local ESP_TABLE = {}
 
-local function newLine(t)
+local function newLine(thick)
     local l = Drawing.new("Line")
-    l.Thickness = t or 1
+    l.Thickness = thick or 1
     l.Visible = false
     return l
 end
-
-local function newText(sz)
-    local t = Drawing.new("Text")
-    t.Size = sz
-    t.Center = true
-    t.Outline = true
-    t.Visible = false
-    return t
-end
-
-local bones = {
-    {"Head","UpperTorso"},
-    {"UpperTorso","LowerTorso"},
-    {"UpperTorso","LeftUpperArm"},
-    {"LeftUpperArm","LeftLowerArm"},
-    {"UpperTorso","RightUpperArm"},
-    {"RightUpperArm","RightLowerArm"},
-    {"LowerTorso","LeftUpperLeg"},
-    {"LeftUpperLeg","LeftLowerLeg"},
-    {"LowerTorso","RightUpperLeg"},
-    {"RightUpperLeg","RightLowerLeg"},
-}
 
 local function createESP(player)
     if player == LocalPlayer then return end
@@ -75,26 +52,40 @@ local function createESP(player)
     local tracer = newLine(1)
     local health = newLine(3)
 
-    local name = newText(13)
-    local dist = newText(12)
+    local dist = Drawing.new("Text")
+    dist.Size = 12
+    dist.Center = true
+    dist.Outline = true
+    dist.Visible = false
 
-    local skeleton = {}
-    for i=1,#bones do skeleton[i] = newLine(1) end
+    local skeleton = {
+        head = newLine(1),
+        torso = newLine(1),
+        larm = newLine(1),
+        rarm = newLine(1),
+        lleg = newLine(1),
+        rleg = newLine(1),
+    }
 
     ESP_TABLE[player] = {
-        box = box, tracer = tracer, health = health,
-        name = name, dist = dist, skeleton = skeleton
+        box = box,
+        tracer = tracer,
+        health = health,
+        dist = dist,
+        skeleton = skeleton
     }
 end
 
 local function removeESP(player)
     if ESP_TABLE[player] then
         for _,v in pairs(ESP_TABLE[player]) do
-            if typeof(v)=="table" then
+            if typeof(v) == "table" then
                 for _,l in pairs(v) do l:Remove() end
-            else v:Remove() end
+            else
+                v:Remove()
+            end
         end
-        ESP_TABLE[player]=nil
+        ESP_TABLE[player] = nil
     end
 end
 
@@ -107,203 +98,137 @@ RunService.RenderStepped:Connect(function()
     local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
     for player,esp in pairs(ESP_TABLE) do
-        for _,v in pairs(esp) do
-            if typeof(v)=="table" then for _,l in pairs(v) do l.Visible=false end
-            else v.Visible=false end
-        end
+        -- 🔴 ซ่อนทุกอย่างก่อน (แก้ค้าง)
+        esp.box.Visible = false
+        esp.tracer.Visible = false
+        esp.health.Visible = false
+        esp.dist.Visible = false
+        for _,l in pairs(esp.skeleton) do l.Visible = false end
 
         if not ESP_ENABLED then continue end
+
         local char = player.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not hum or hum.Health<=0 or not hrp then continue end
+        if not hum or hum.Health <= 0 or not hrp then continue end
+        if TEAM_CHECK_ESP and player.Team == LocalPlayer.Team then continue end
 
         local pos,on = Camera:WorldToViewportPoint(hrp.Position)
         if not on then continue end
 
-        local color = (player.Team and LocalPlayer.Team and player.Team==LocalPlayer.Team)
-            and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,0,0)
+        local color = (player.Team == LocalPlayer.Team)
+            and Color3.fromRGB(0,255,0)
+            or Color3.fromRGB(255,0,0)
 
         local size = Vector2.new(2000/pos.Z,3000/pos.Z)
         local x,y = pos.X-size.X/2,pos.Y-size.Y/2
 
         if BOX_ENABLED then
-            esp.box.Size=size; esp.box.Position=Vector2.new(x,y)
-            esp.box.Color=color; esp.box.Visible=true
-        end
-
-        esp.name.Text=player.Name
-        esp.name.Color=color
-        esp.name.Position=Vector2.new(pos.X,y-14)
-        esp.name.Visible=true
-
-        if DIST_ENABLED and myHRP then
-            esp.dist.Text=math.floor((myHRP.Position-hrp.Position).Magnitude).." studs"
-            esp.dist.Color=color
-            esp.dist.Position=Vector2.new(pos.X,y-2)
-            esp.dist.Visible=true
+            esp.box.Size = size
+            esp.box.Position = Vector2.new(x,y)
+            esp.box.Color = color
+            esp.box.Visible = true
         end
 
         if LINE_ENABLED then
-            esp.tracer.From=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y)
-            esp.tracer.To=Vector2.new(pos.X,pos.Y)
-            esp.tracer.Color=color
-            esp.tracer.Visible=true
+            esp.tracer.From = Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y)
+            esp.tracer.To = Vector2.new(pos.X,pos.Y)
+            esp.tracer.Color = color
+            esp.tracer.Visible = true
         end
 
         if HEALTH_ENABLED then
-            local hp=math.clamp(hum.Health/hum.MaxHealth,0,1)
-            esp.health.From=Vector2.new(x-5,y+size.Y)
-            esp.health.To=Vector2.new(x-5,y+size.Y-(size.Y*hp))
-            esp.health.Color=Color3.fromRGB(255*(1-hp),255*hp,0)
-            esp.health.Visible=true
+            local hp = hum.Health/hum.MaxHealth
+            esp.health.From = Vector2.new(x-5,y+size.Y)
+            esp.health.To = Vector2.new(x-5,y+size.Y-(size.Y*hp))
+            esp.health.Color = Color3.fromRGB(0,255,0)
+            esp.health.Visible = true
         end
 
-        if SKELETON_ENABLED then
-            for i,pair in ipairs(bones) do
-                local a=char:FindFirstChild(pair[1])
-                local b=char:FindFirstChild(pair[2])
-                if a and b then
-                    local pa,oa=Camera:WorldToViewportPoint(a.Position)
-                    local pb,ob=Camera:WorldToViewportPoint(b.Position)
-                    if oa and ob then
-                        esp.skeleton[i].From=Vector2.new(pa.X,pa.Y)
-                        esp.skeleton[i].To=Vector2.new(pb.X,pb.Y)
-                        esp.skeleton[i].Color=color
-                        esp.skeleton[i].Visible=true
-                    end
-                end
-            end
+        if DIST_ENABLED and myHRP then
+            esp.dist.Text = math.floor((myHRP.Position-hrp.Position).Magnitude).." studs"
+            esp.dist.Position = Vector2.new(pos.X,y-12)
+            esp.dist.Color = color
+            esp.dist.Visible = true
         end
     end
 end)
 
+-- ================= ESP UI =================
 ESPTab:CreateToggle({Name="Enable ESP",CurrentValue=false,Callback=function(v) ESP_ENABLED=v end})
 ESPTab:CreateToggle({Name="Box",CurrentValue=true,Callback=function(v) BOX_ENABLED=v end})
 ESPTab:CreateToggle({Name="Line",CurrentValue=true,Callback=function(v) LINE_ENABLED=v end})
 ESPTab:CreateToggle({Name="Health Bar",CurrentValue=true,Callback=function(v) HEALTH_ENABLED=v end})
 ESPTab:CreateToggle({Name="Distance",CurrentValue=true,Callback=function(v) DIST_ENABLED=v end})
-ESPTab:CreateToggle({Name="Skeleton",CurrentValue=false,Callback=function(v) SKELETON_ENABLED=v end})
+ESPTab:CreateToggle({Name="Team Check",CurrentValue=true,Callback=function(v) TEAM_CHECK_ESP=v end})
 
 -- =================================================
 -- ===================== AIMBOT ====================
 -- =================================================
-local AimbotEnabled=false
-local WallCheck=true
-local TeamCheck=true
-local AimPart="Head"
-local FOV=120
-local Smooth=0.35
-
-local circle=Drawing.new("Circle")
-circle.Visible=false; circle.Filled=false; circle.Thickness=1
-circle.Radius=FOV; circle.Color=Color3.fromRGB(0,255,0)
-
-RunService.RenderStepped:Connect(function()
-    circle.Position=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
-end)
+local AimbotEnabled = false
+local WallCheck = true
+local TeamCheckAim = true
+local AimPart = "Head"
+local Strength = 1 -- แรงมาก
 
 local function Visible(part)
-    if not WallCheck then return true end
-    local params=RaycastParams.new()
-    params.FilterType=Enum.RaycastFilterType.Blacklist
-    params.FilterDescendantsInstances={LocalPlayer.Character,Camera}
-    local r=workspace:Raycast(Camera.CFrame.Position,(part.Position-Camera.CFrame.Position),params)
-    return r and r.Instance:IsDescendantOf(part.Parent)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    local ray = workspace:Raycast(Camera.CFrame.Position, (part.Position-Camera.CFrame.Position), params)
+    return ray and ray.Instance:IsDescendantOf(part.Parent)
 end
 
-local function GetTarget()
-    local best,dist=nil,FOV
+RunService.RenderStepped:Connect(function()
+    if not AimbotEnabled then return end
+
+    local closest,dist = nil,math.huge
     for _,plr in ipairs(Players:GetPlayers()) do
-        if plr~=LocalPlayer and plr.Character and plr.Character:FindFirstChild(AimPart) then
-            if not TeamCheck or plr.Team~=LocalPlayer.Team then
-                local hum=plr.Character:FindFirstChildOfClass("Humanoid")
-                local part=plr.Character[AimPart]
-                if hum and hum.Health>0 then
-                    local p,on=Camera:WorldToViewportPoint(part.Position)
-                    if on then
-                        local d=(Vector2.new(p.X,p.Y)-circle.Position).Magnitude
-                        if d<dist and Visible(part) then dist=d; best=part end
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(AimPart) then
+            if not TeamCheckAim or plr.Team ~= LocalPlayer.Team then
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                local part = plr.Character[AimPart]
+                if hum and hum.Health > 0 then
+                    if not WallCheck or Visible(part) then
+                        local d = (part.Position - Camera.CFrame.Position).Magnitude
+                        if d < dist then
+                            dist = d
+                            closest = part
+                        end
                     end
                 end
             end
         end
     end
-    return best
-end
 
-RunService.RenderStepped:Connect(function()
-    if not AimbotEnabled then return end
-    local t=GetTarget()
-    if t then
-        Camera.CFrame=Camera.CFrame:Lerp(
-            CFrame.new(Camera.CFrame.Position,t.Position),
-            Smooth
+    if closest then
+        Camera.CFrame = Camera.CFrame:Lerp(
+            CFrame.new(Camera.CFrame.Position, closest.Position),
+            Strength
         )
     end
 end)
 
-AimTab:CreateToggle({Name="Enable Aimbot",CurrentValue=false,Callback=function(v) AimbotEnabled=v circle.Visible=v end})
+AimTab:CreateToggle({Name="Enable Aimbot",CurrentValue=false,Callback=function(v) AimbotEnabled=v end})
 AimTab:CreateToggle({Name="Wall Check",CurrentValue=true,Callback=function(v) WallCheck=v end})
-AimTab:CreateToggle({Name="Team Check",CurrentValue=true,Callback=function(v) TeamCheck=v end})
-AimTab:CreateSlider({Name="FOV",Range={40,300},Increment=5,CurrentValue=FOV,Callback=function(v) FOV=v circle.Radius=v end})
-AimTab:CreateSlider({Name="Smooth",Range={1,100},Increment=1,CurrentValue=35,Callback=function(v) Smooth=v/100 end})
-AimTab:CreateButton({Name="Switch Aim Part (Head/Body)",Callback=function()
-    AimPart=(AimPart=="Head") and "HumanoidRootPart" or "Head"
+AimTab:CreateToggle({Name="Team Check",CurrentValue=true,Callback=function(v) TeamCheckAim=v end})
+AimTab:CreateButton({Name="Switch Aim Part",Callback=function()
+    AimPart = (AimPart=="Head") and "HumanoidRootPart" or "Head"
 end})
 
 -- =================================================
--- ================= PERFORMANCE ===================
+-- ================= FPS BOOST =====================
 -- =================================================
 PerfTab:CreateButton({
-    Name="Boost FPS (Very Smooth)",
+    Name="Boost FPS (Ultra)",
     Callback=function()
-        settings().Rendering.QualityLevel=Enum.QualityLevel.Level01
-        Lighting.GlobalShadows=false
-        Lighting.FogEnd=1e9
-        for _,v in ipairs(Lighting:GetDescendants()) do
-            if v:IsA("PostEffect") then v.Enabled=false end
+        Lighting.GlobalShadows = false
+        settings().Rendering.QualityLevel = 1
+        for _,v in pairs(workspace:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.Material = Enum.Material.Plastic
+                v.Reflectance = 0
+            end
         end
     end
 })
-
--- =================================================
--- ==================== MISC =======================
--- =================================================
-MiscTab:CreateButton({
-    Name="Invisible",
-    Callback=function()
-        loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Invisible-script-20557"))()
-    end
-})
-
--- =================================================
--- ==================== BUILD ======================
--- =================================================
-local stepsEnabled=false
-local lastPos=nil
-local stepY=nil
-
-BuildTab:CreateToggle({
-    Name="Enable Steps",
-    CurrentValue=false,
-    Callback=function(v)
-        stepsEnabled=v; lastPos=nil; stepY=nil
-    end
-})
-
-RunService.Heartbeat:Connect(function()
-    if not stepsEnabled then return end
-    local c=LocalPlayer.Character
-    local hrp=c and c:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    if not lastPos then lastPos=hrp.Position; stepY=hrp.Position.Y-3; return end
-    if (Vector3.new(hrp.Position.X,0,hrp.Position.Z)-Vector3.new(lastPos.X,0,lastPos.Z)).Magnitude>=4 then
-        stepY+=1
-        local p=Instance.new("Part")
-        p.Size=Vector3.new(4,1,4); p.Anchored=true
-        p.Position=Vector3.new(hrp.Position.X,stepY,hrp.Position.Z)
-        p.Parent=workspace; Debris:AddItem(p,5)
-        lastPos=hrp.Position
-    end
-end)
