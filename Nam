@@ -23,7 +23,7 @@ local LocalPlayer = Players.LocalPlayer
 local Lighting = game:GetService("Lighting")
 
 -- =================================================
--- ===================== ESP =======================
+-- ======================= ESP =====================
 -- =================================================
 local ESP_ENABLED = false
 local BOX_ENABLED = true
@@ -94,11 +94,8 @@ RunService.RenderStepped:Connect(function()
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
 
-        -- hide all (กันค้าง)
         for _,v in pairs(esp) do v.Visible = false end
-
-        if not ESP_ENABLED then continue end
-        if not hum or hum.Health <= 0 or not hrp then continue end
+        if not ESP_ENABLED or not hum or hum.Health <= 0 or not hrp then continue end
 
         local pos,on = Camera:WorldToViewportPoint(hrp.Position)
         if not on then continue end
@@ -154,7 +151,7 @@ ESPTab:CreateToggle({Name="Health Bar",CurrentValue=true,Callback=function(v) HE
 ESPTab:CreateToggle({Name="Distance",CurrentValue=true,Callback=function(v) DIST_ENABLED=v end})
 
 -- =================================================
--- ==================== AIMBOT =====================
+-- ===================== AIMBOT ====================
 -- =================================================
 local aimPartName = "Head"
 local FOV = 100
@@ -172,19 +169,33 @@ RunService.RenderStepped:Connect(function()
     circle.Position = Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
 end)
 
-local function getClosest()
-    local closest,dist = nil,FOV
-    for _,p in ipairs(Players:GetPlayers()) do
-        if p~=LocalPlayer and p.Character and p.Character:FindFirstChild(aimPartName) then
-            if not TeamCheck or p.Team~=LocalPlayer.Team then
-                local hum=p.Character:FindFirstChild("Humanoid")
-                if hum and hum.Health>0 then
-                    local pos,on=Camera:WorldToViewportPoint(p.Character[aimPartName].Position)
+local function IsVisible(part)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+
+    local ray = workspace:Raycast(
+        Camera.CFrame.Position,
+        (part.Position - Camera.CFrame.Position).Unit * 500,
+        params
+    )
+    return ray and ray.Instance:IsDescendantOf(part.Parent)
+end
+
+local function GetClosestTarget()
+    local closest,shortest = nil,FOV
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(aimPartName) then
+            if not TeamCheck or plr.Team ~= LocalPlayer.Team then
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                local part = plr.Character[aimPartName]
+                if hum and hum.Health > 0 then
+                    local pos,on = Camera:WorldToViewportPoint(part.Position)
                     if on then
-                        local d=(Vector2.new(pos.X,pos.Y)-circle.Position).Magnitude
-                        if d<dist then
-                            dist=d
-                            closest=p.Character[aimPartName]
+                        local dist = (Vector2.new(pos.X,pos.Y)-circle.Position).Magnitude
+                        if dist < shortest and IsVisible(part) then
+                            shortest = dist
+                            closest = part
                         end
                     end
                 end
@@ -196,9 +207,9 @@ end
 
 RunService.RenderStepped:Connect(function()
     if AimbotEnabled then
-        local t=getClosest()
-        if t then
-            Camera.CFrame=CFrame.new(Camera.CFrame.Position,t.Position)
+        local target = GetClosestTarget()
+        if target then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position,target.Position)
         end
     end
 end)
@@ -208,7 +219,7 @@ AimTab:CreateToggle({Name="Show FOV",CurrentValue=false,Callback=function(v) cir
 AimTab:CreateSlider({Name="FOV",Range={30,300},Increment=5,CurrentValue=FOV,Callback=function(v) FOV=v circle.Radius=v end})
 AimTab:CreateToggle({Name="Team Check",CurrentValue=true,Callback=function(v) TeamCheck=v end})
 AimTab:CreateButton({Name="Switch Aim Part",Callback=function()
-    aimPartName = aimPartName=="Head" and "HumanoidRootPart" or "Head"
+    aimPartName = (aimPartName=="Head") and "HumanoidRootPart" or "Head"
 end})
 
 -- =================================================
