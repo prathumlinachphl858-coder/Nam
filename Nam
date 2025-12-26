@@ -15,188 +15,60 @@ local AimTab   = Window:CreateTab("Aimbot", 4483362458)
 local MiscTab  = Window:CreateTab("Misc", 4483362458)
 local BuildTab = Window:CreateTab("Build", 4483362458)
 
--- ================= SERVICES =================
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
+-- ================= SERVICES ======================
+local Players     = game:GetService("Players")
+local RunService  = game:GetService("RunService")
+local Lighting    = game:GetService("Lighting")
+local Camera      = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
-local Lighting = game:GetService("Lighting")
 
--- =================================================
--- ======================= ESP =====================
--- =================================================
-local ESP_ENABLED = false
-local BOX_ENABLED = true
-local LINE_ENABLED = true
-local HEALTH_ENABLED = true
-local DIST_ENABLED = true
-
-local ESP_TABLE = {}
-
-local function newLine(t)
-    local l = Drawing.new("Line")
-    l.Thickness = t or 1
-    l.Visible = false
-    return l
-end
-
-local function createESP(player)
-    if player == LocalPlayer then return end
-
-    local box = Drawing.new("Square")
-    box.Filled = false
-    box.Thickness = 1
-    box.Visible = false
-
-    local tracer = newLine(1)
-    local health = newLine(3)
-
-    local name = Drawing.new("Text")
-    name.Size = 13
-    name.Center = true
-    name.Outline = true
-    name.Visible = false
-
-    local dist = Drawing.new("Text")
-    dist.Size = 12
-    dist.Center = true
-    dist.Outline = true
-    dist.Visible = false
-
-    ESP_TABLE[player] = {
-        box = box,
-        tracer = tracer,
-        health = health,
-        name = name,
-        dist = dist
-    }
-end
-
-local function removeESP(player)
-    if ESP_TABLE[player] then
-        for _,v in pairs(ESP_TABLE[player]) do
-            v:Remove()
-        end
-        ESP_TABLE[player] = nil
-    end
-end
-
-for _,p in ipairs(Players:GetPlayers()) do createESP(p) end
-Players.PlayerAdded:Connect(createESP)
-Players.PlayerRemoving:Connect(removeESP)
-
-RunService.RenderStepped:Connect(function()
-    local myChar = LocalPlayer.Character
-    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-
-    for player,esp in pairs(ESP_TABLE) do
-        local char = player.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-
-        for _,v in pairs(esp) do v.Visible = false end
-        if not ESP_ENABLED or not hum or hum.Health <= 0 or not hrp then continue end
-
-        local pos,on = Camera:WorldToViewportPoint(hrp.Position)
-        if not on then continue end
-
-        local color = Color3.fromRGB(255,0,0)
-        if player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
-            color = Color3.fromRGB(0,255,0)
-        end
-
-        local size = Vector2.new(2000/pos.Z,3000/pos.Z)
-        local x,y = pos.X-size.X/2,pos.Y-size.Y/2
-
-        if BOX_ENABLED then
-            esp.box.Size = size
-            esp.box.Position = Vector2.new(x,y)
-            esp.box.Color = color
-            esp.box.Visible = true
-        end
-
-        esp.name.Text = player.Name
-        esp.name.Color = color
-        esp.name.Position = Vector2.new(pos.X,y-14)
-        esp.name.Visible = true
-
-        if DIST_ENABLED and myHRP then
-            esp.dist.Text = math.floor((myHRP.Position-hrp.Position).Magnitude).." studs"
-            esp.dist.Color = color
-            esp.dist.Position = Vector2.new(pos.X,y-2)
-            esp.dist.Visible = true
-        end
-
-        if LINE_ENABLED then
-            esp.tracer.From = Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y)
-            esp.tracer.To = Vector2.new(pos.X,pos.Y)
-            esp.tracer.Color = color
-            esp.tracer.Visible = true
-        end
-
-        if HEALTH_ENABLED then
-            local hp = hum.Health/hum.MaxHealth
-            esp.health.From = Vector2.new(x-5,y+size.Y)
-            esp.health.To = Vector2.new(x-5,y+size.Y-(size.Y*hp))
-            esp.health.Color = Color3.fromRGB(0,255,0)
-            esp.health.Visible = true
-        end
-    end
-end)
-
-ESPTab:CreateToggle({Name="Enable ESP",CurrentValue=false,Callback=function(v) ESP_ENABLED=v end})
-ESPTab:CreateToggle({Name="Box",CurrentValue=true,Callback=function(v) BOX_ENABLED=v end})
-ESPTab:CreateToggle({Name="Line",CurrentValue=true,Callback=function(v) LINE_ENABLED=v end})
-ESPTab:CreateToggle({Name="Health Bar",CurrentValue=true,Callback=function(v) HEALTH_ENABLED=v end})
-ESPTab:CreateToggle({Name="Distance",CurrentValue=true,Callback=function(v) DIST_ENABLED=v end})
-
--- =================================================
--- ===================== AIMBOT ====================
--- =================================================
+-- =================== AIMBOT ======================
 local aimPartName = "Head"
-local FOV = 100
-local AimbotEnabled = false
+local FieldOfView = 100
 local TeamCheck = true
+local autoLockEnabled = false
+
+-- 🔥 Strong Aim
+local strongAimEnabled = false
+local aimStrength = 8
+local lockedTarget = nil
 
 local circle = Drawing.new("Circle")
 circle.Visible = false
-circle.Radius = FOV
+circle.Radius = FieldOfView
+circle.Color = Color3.fromRGB(0,255,0)
 circle.Thickness = 1
 circle.Filled = false
-circle.Color = Color3.fromRGB(0,255,0)
 
 RunService.RenderStepped:Connect(function()
-    circle.Position = Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
+    circle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 end)
 
 local function IsVisible(part)
     local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Blacklist
     params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-
-    local ray = workspace:Raycast(
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(
         Camera.CFrame.Position,
         (part.Position - Camera.CFrame.Position).Unit * 500,
         params
     )
-    return ray and ray.Instance:IsDescendantOf(part.Parent)
+    return result and result.Instance:IsDescendantOf(part.Parent)
 end
 
-local function GetClosestTarget()
-    local closest,shortest = nil,FOV
+local function GetClosestEnemy()
+    local closest, shortest = nil, FieldOfView
     for _,plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(aimPartName) then
             if not TeamCheck or plr.Team ~= LocalPlayer.Team then
-                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-                local part = plr.Character[aimPartName]
+                local hum = plr.Character:FindFirstChild("Humanoid")
                 if hum and hum.Health > 0 then
-                    local pos,on = Camera:WorldToViewportPoint(part.Position)
-                    if on then
-                        local dist = (Vector2.new(pos.X,pos.Y)-circle.Position).Magnitude
-                        if dist < shortest and IsVisible(part) then
-                            shortest = dist
-                            closest = part
-                        end
+                    local part = plr.Character[aimPartName]
+                    local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    local dist = (Vector2.new(pos.X,pos.Y) - circle.Position).Magnitude
+                    if onScreen and dist < shortest and IsVisible(part) then
+                        shortest = dist
+                        closest = part
                     end
                 end
             end
@@ -206,83 +78,93 @@ local function GetClosestTarget()
 end
 
 RunService.RenderStepped:Connect(function()
-    if AimbotEnabled then
-        local target = GetClosestTarget()
-        if target then
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position,target.Position)
-        end
-    end
-end)
-
-AimTab:CreateToggle({Name="Enable Aimbot",CurrentValue=false,Callback=function(v) AimbotEnabled=v end})
-AimTab:CreateToggle({Name="Show FOV",CurrentValue=false,Callback=function(v) circle.Visible=v end})
-AimTab:CreateSlider({Name="FOV",Range={30,300},Increment=5,CurrentValue=FOV,Callback=function(v) FOV=v circle.Radius=v end})
-AimTab:CreateToggle({Name="Team Check",CurrentValue=true,Callback=function(v) TeamCheck=v end})
-AimTab:CreateButton({Name="Switch Aim Part",Callback=function()
-    aimPartName = (aimPartName=="Head") and "HumanoidRootPart" or "Head"
-end})
-
--- =================================================
--- ================= PERFORMANCE ===================
--- =================================================
-PerfTab:CreateToggle({
-    Name="No Fog",
-    CurrentValue=false,
-    Callback=function(v)
-        if v then
-            Lighting.FogStart=0
-            Lighting.FogEnd=1e9
-        end
-    end
-})
-
--- =================================================
--- ==================== MISC =======================
--- =================================================
-MiscTab:CreateButton({
-    Name="Invisible",
-    Callback=function()
-        loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-Invisible-script-20557"))()
-    end
-})
-
--- =================================================
--- ==================== BUILD ======================
--- =================================================
-local stepsEnabled=false
-local lastPos=nil
-local stepY=nil
-
-BuildTab:CreateToggle({
-    Name="Enable Steps",
-    CurrentValue=false,
-    Callback=function(v)
-        stepsEnabled=v
-        lastPos=nil
-        stepY=nil
-    end
-})
-
-RunService.Heartbeat:Connect(function()
-    if not stepsEnabled then return end
-    local c=LocalPlayer.Character
-    local hrp=c and c:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    if not lastPos then
-        lastPos=hrp.Position
-        stepY=hrp.Position.Y-3
+    if not autoLockEnabled then
+        lockedTarget = nil
         return
     end
 
-    if (Vector3.new(hrp.Position.X,0,hrp.Position.Z)-Vector3.new(lastPos.X,0,lastPos.Z)).Magnitude>=4 then
-        stepY+=1
-        local p=Instance.new("Part")
-        p.Size=Vector3.new(4,1,4)
-        p.Anchored=true
-        p.Position=Vector3.new(hrp.Position.X,stepY,hrp.Position.Z)
-        p.Parent=workspace
-        game:GetService("Debris"):AddItem(p,5)
-        lastPos=hrp.Position
+    if strongAimEnabled then
+        if not lockedTarget or not lockedTarget.Parent then
+            lockedTarget = GetClosestEnemy()
+        end
+
+        if lockedTarget then
+            local camPos = Camera.CFrame.Position
+            local targetCF = CFrame.new(camPos, lockedTarget.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCF, aimStrength / 10)
+        end
+    else
+        local target = GetClosestEnemy()
+        if target then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+        end
     end
 end)
+
+-- ================= AIMBOT UI =================
+AimTab:CreateToggle({
+    Name = "Enable Aimbot",
+    CurrentValue = false,
+    Callback = function(v)
+        autoLockEnabled = v
+        lockedTarget = nil
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Strong Aim (แรง)",
+    CurrentValue = false,
+    Callback = function(v)
+        strongAimEnabled = v
+        lockedTarget = nil
+    end
+})
+
+AimTab:CreateSlider({
+    Name = "Aim Strength",
+    Range = {1,10},
+    Increment = 1,
+    CurrentValue = aimStrength,
+    Callback = function(v)
+        aimStrength = v
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Show FOV Circle",
+    CurrentValue = false,
+    Callback = function(v)
+        circle.Visible = v
+    end
+})
+
+AimTab:CreateSlider({
+    Name = "FOV Radius",
+    Range = {30,300},
+    Increment = 5,
+    CurrentValue = FieldOfView,
+    Callback = function(v)
+        FieldOfView = v
+        circle.Radius = v
+    end
+})
+
+AimTab:CreateToggle({
+    Name = "Team Check",
+    CurrentValue = true,
+    Callback = function(v)
+        TeamCheck = v
+    end
+})
+
+AimTab:CreateButton({
+    Name = "Aim Head Only",
+    Callback = function()
+        aimPartName = "Head"
+        Rayfield:Notify({
+            Title = "Aimbot",
+            Content = "Aim Part: Head",
+            Duration = 2
+        })
+    end
+})
