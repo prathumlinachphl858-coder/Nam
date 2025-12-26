@@ -1,11 +1,11 @@
 --==================================================
--- LOAD RAYFIELD (UI อยู่บรรทัดแรกสุดเสมอ)
+-- LOAD RAYFIELD (UI อยู่บรรทัดแรกสุด)
 --==================================================
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 --==================================================
 -- NamX Hub | Rayfield Core
--- Version : v1.6.1
+-- Version : v1.7
 -- Author  : Nam
 --==================================================
 
@@ -32,131 +32,90 @@ local Window = Rayfield:CreateWindow({
 })
 
 --==================================================
--- AIMBOT + HITBOX TAB
+-- AIMBOT + HITBOX (ใช้ตัวใหม่ที่น้ำส่ง)
 --==================================================
 local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
 AimbotTab:CreateSection("Aimbot & Hitbox")
 
-local AimbotConfig = {
-    Enabled = false,
-    TargetPart = "Head",
-    FOV = 120,
-    Smoothness = 0.15,
-    WallCheck = true,
-    HitboxEnabled = false,
-    HitboxSizeHead = 6,
-    HitboxSizeBody = 10,
-    HitboxTransparency = 0.7
-}
+local aimPartName = "Head"
+local FieldOfView = 100
+local TeamCheck = true
+local hitboxSize = Vector3.new(4,4,4)
+local autoLockEnabled = true
 
-local HitboxCache = {}
+-- วง FOV
+local circle = Drawing.new("Circle")
+circle.Visible = true
+circle.Radius = FieldOfView
+circle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+circle.Color = Color3.fromRGB(0, 255, 0)
+circle.Thickness = 1
+circle.Filled = false
 
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Thickness = 1
-FOVCircle.NumSides = 64
-FOVCircle.Filled = false
-FOVCircle.Visible = false
-FOVCircle.Color = Color3.fromRGB(255,255,255)
-
-local function isVisible(targetPart)
-    local origin = Camera.CFrame.Position
-    local direction = (targetPart.Position - origin)
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Blacklist
-    params.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent}
-    local result = workspace:Raycast(origin, direction, params)
-    if result then
-        return result.Instance:IsDescendantOf(targetPart.Parent)
-    end
-    return true
+function IsVisible(part)
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 500, rayParams)
+    return result and result.Instance:IsDescendantOf(part.Parent)
 end
 
-local function getClosestTargetInFOV()
-    local closestPlayer = nil
-    local shortestDistance = math.huge
-    local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Team ~= LocalPlayer.Team then
-            local char = player.Character
-            local part = char and char:FindFirstChild(AimbotConfig.TargetPart)
-            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-            if part and humanoid and humanoid.Health > 0 then
-                if AimbotConfig.WallCheck and not isVisible(part) then continue end
+function GetClosestEnemy()
+    local closest, shortest = nil, FieldOfView
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(aimPartName) then
+            if not TeamCheck or plr.Team ~= LocalPlayer.Team then
+                local part = plr.Character[aimPartName]
                 local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                    if dist < AimbotConfig.FOV and dist < shortestDistance then
-                        shortestDistance = dist
-                        closestPlayer = part
-                    end
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - circle.Position).Magnitude
+                if onScreen and dist < shortest and IsVisible(part) and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+                    closest = part
+                    shortest = dist
                 end
             end
         end
     end
-    return closestPlayer
-end
-
-local function applyHitbox(player)
-    if not AimbotConfig.HitboxEnabled then return end
-    if player == LocalPlayer or player.Team == LocalPlayer.Team then return end
-    local char = player.Character
-    if not char then return end
-    local targetPartName = AimbotConfig.TargetPart
-    local part = char:FindFirstChild(targetPartName)
-    if not part or not part:IsA("BasePart") then return end
-    if not HitboxCache[part] then
-        HitboxCache[part] = {Size=part.Size,Transparency=part.Transparency,CanCollide=part.CanCollide}
-    end
-    local size = (targetPartName=="Head") and AimbotConfig.HitboxSizeHead or AimbotConfig.HitboxSizeBody
-    part.Size = Vector3.new(size,size,size)
-    part.Transparency = AimbotConfig.HitboxTransparency
-    part.CanCollide = false
-end
-
-local function restoreHitbox()
-    for part, data in pairs(HitboxCache) do
-        if part and part.Parent then
-            part.Size = data.Size
-            part.Transparency = data.Transparency
-            part.CanCollide = data.CanCollide
-        end
-    end
-    table.clear(HitboxCache)
+    return closest
 end
 
 RunService.RenderStepped:Connect(function()
-    local screenCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    FOVCircle.Position = screenCenter
-    FOVCircle.Radius = AimbotConfig.FOV
-    FOVCircle.Visible = AimbotConfig.Enabled
-
-    if AimbotConfig.Enabled then
-        local targetPart = getClosestTargetInFOV()
-        if targetPart then
-            local camPos = Camera.CFrame.Position
-            local newCFrame = CFrame.new(camPos, targetPart.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(newCFrame, AimbotConfig.Smoothness)
-        end
-    end
-
-    if AimbotConfig.HitboxEnabled then
-        for _, plr in ipairs(Players:GetPlayers()) do applyHitbox(plr) end
-    else
-        restoreHitbox()
+    local target = GetClosestEnemy()
+    if target and autoLockEnabled then
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
     end
 end)
 
-AimbotTab:CreateToggle({Name="Enable Aimbot",CurrentValue=false,Callback=function(v) AimbotConfig.Enabled=v end})
-AimbotTab:CreateDropdown({Name="Target Part",Options={"Head","HumanoidRootPart"},CurrentOption="Head",Callback=function(v) AimbotConfig.TargetPart=v end})
-AimbotTab:CreateSlider({Name="FOV Size",Range={50,400},Increment=5,CurrentValue=120,Callback=function(v) AimbotConfig.FOV=v end})
-AimbotTab:CreateSlider({Name="Smoothness",Range={0.05,1},Increment=0.05,CurrentValue=0.15,Callback=function(v) AimbotConfig.Smoothness=v end})
-AimbotTab:CreateToggle({Name="Wall Check",CurrentValue=true,Callback=function(v) AimbotConfig.WallCheck=v end})
-AimbotTab:CreateToggle({Name="Enable Hitbox",CurrentValue=false,Callback=function(v) AimbotConfig.HitboxEnabled=v if not v then restoreHitbox() end end})
-AimbotTab:CreateSlider({Name="Hitbox Size (Head)",Range={4,20},Increment=1,CurrentValue=AimbotConfig.HitboxSizeHead,Callback=function(v) AimbotConfig.HitboxSizeHead=v end})
-AimbotTab:CreateSlider({Name="Hitbox Size (Body)",Range={6,30},Increment=1,CurrentValue=AimbotConfig.HitboxSizeBody,Callback=function(v) AimbotConfig.HitboxSizeBody=v end})
+local function applyHitbox(char)
+    local plr = Players:GetPlayerFromCharacter(char)
+    if plr and (not TeamCheck or plr.Team ~= LocalPlayer.Team) then
+        local function tryApply()
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.Size = hitboxSize
+                hrp.Transparency = 0.7
+                hrp.Material = Enum.Material.Neon
+                hrp.Color = Color3.new(1, 0, 0)
+            else
+                task.delay(0.1, tryApply)
+            end
+        end
+        tryApply()
+    end
+end
+
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(function(char)
+        applyHitbox(char)
+    end)
+end)
+
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr.Character then applyHitbox(plr.Character) end
+    plr.CharacterAdded:Connect(applyHitbox)
+end
 
 --==================================================
--- VISUAL / ESP TAB
+-- ESP TAB (คงของเดิม)
 --==================================================
 local VisualTab = Window:CreateTab("Visual", 4483362458)
 VisualTab:CreateSection("ESP System")
