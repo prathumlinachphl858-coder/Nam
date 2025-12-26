@@ -1,4 +1,9 @@
 --==================================================
+-- LOAD RAYFIELD (UI อยู่บรรทัดแรกสุดเสมอ)
+--==================================================
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+
+--==================================================
 -- NamX Hub | Rayfield Core
 -- Version : v1.6.1
 -- Author  : Nam
@@ -14,11 +19,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-
---==================================================
--- LOAD RAYFIELD (UI อยู่ก่อนเสมอ)
---==================================================
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 --==================================================
 -- CREATE WINDOW
@@ -288,7 +288,7 @@ local function updateESP()
 
                 for _, lineData in ipairs(obj.Skeleton) do
                     local fromPos, fromScreen = getPartPos(lineData[1])
-                    local toPos = fromPos -- ต่อพาร์ตตาม Skeleton logic
+                    local toPos = fromPos
                     lineData[2].From = fromPos
                     lineData[2].To = toPos
                     lineData[2].Color = color
@@ -366,4 +366,4 @@ VisualTab:CreateToggle({Name="ESP Skeleton",CurrentValue=false,Callback=function
 VisualTab:CreateToggle({Name="ESP Line",CurrentValue=false,Callback=function(v) ESPConfig.Line=v end})
 VisualTab:CreateToggle({Name="ESP Name",CurrentValue=false,Callback=function(v) ESPConfig.Name=v end})
 VisualTab:CreateToggle({Name="ESP Distance",CurrentValue=false,Callback=function(v) ESPConfig.Distance=v end})
-VisualTab:CreateToggle({Name="ESP Health Bar",CurrentValue=false,Callback=function(v) ESPConfig.HealthBar=v end
+VisualTab:CreateToggle({Name="ESP Health Bar",CurrentValue=false,Callback=function(v) ESPConfig.HealthBar=v end})
