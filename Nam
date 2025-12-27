@@ -81,17 +81,17 @@ FOVCircle.Filled = false
 FOVCircle.Color = Color3.fromRGB(0,255,0)
 
 --==================================================
--- TEAM COLOR FUNCTION
+-- TEAM COLOR FUNCTION (แก้ไขแล้ว)
 --==================================================
 local function getTeamColor(player)
-    if player.Team then
-        local tName = player.Team.Name
-        if tName=="TeamA" then return Color3.fromRGB(0,255,0)
-        elseif tName=="TeamB" then return Color3.fromRGB(255,0,0)
-        elseif tName=="TeamC" then return Color3.fromRGB(255,255,255)
-        else return Color3.fromRGB(0,0,0) end
+    if player.Team and LocalPlayer.Team then
+        if player.Team == LocalPlayer.Team then
+            return Color3.fromRGB(0,255,0) -- ทีมเรา = เขียว
+        else
+            return Color3.fromRGB(255,0,0) -- ทีมตรงข้าม = แดง
+        end
     else
-        return Color3.fromRGB(0,0,0)
+        return Color3.fromRGB(255,255,255) -- ไม่มีทีม = ขาว
     end
 end
 
@@ -261,7 +261,7 @@ local function updateESP()
             local hpPercent = hum.Health/hum.MaxHealth
             bar.Size = Vector2.new(barWidth, barHeight*hpPercent)
             bar.Position = Vector2.new(pos.X+25, pos.Y+barHeight*(1-hpPercent)/2 - barHeight/2)
-            bar.Color = Color3.fromRGB(255*(1-hpPercent),255*hpPercent,0)
+            bar.Color = getTeamColor(player)
             bar.Visible=ESPConfig.HealthBar and onScreen
         else bar.Visible=false end
     end
