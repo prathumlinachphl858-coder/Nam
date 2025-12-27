@@ -1,132 +1,71 @@
---==================================================
--- LOAD RAYFIELD (บนสุด)
---==================================================
+-- ================= LOAD RAYFIELD =================
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
+-- ================= CREATE WINDOW =================
 local Window = Rayfield:CreateWindow({
     Name = "NamX Hub",
     LoadingTitle = "NamX Hub",
     LoadingSubtitle = "by Nam",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "NamXHub",
-        FileName = "Main"
-    },
+    ConfigurationSaving = { Enabled = true, FolderName = "NamXHub", FileName = "Config" },
     KeySystem = false
 })
 
---==================================================
--- SERVICES
---==================================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
---==================================================
--- AIMBOT + HITBOX CONFIG
---==================================================
+-- ==================================================
+-- ================== AIMBOT =======================
+-- ==================================================
 local AimbotConfig = {
     Enabled = true,
     TargetPart = "Head",
     FOV = 100,
     TeamCheck = true,
     WallCheck = true,
-    HitboxEnabled = true,
-    HitboxSize = Vector3.new(4,4,4)
+    AutoLock = true
 }
 
---==================================================
--- VISUAL / ESP CONFIG
---==================================================
-local ESPConfig = {
-    Box=false, Skeleton=false, Line=false, Name=false, Distance=false, HealthBar=false
-}
-local ESPObjects = {}
-local HealthBarObjects = {}
+local hitboxSize = Vector3.new(4,4,4)
 
---==================================================
--- UI TAB: AIMBOT
---==================================================
-local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
-AimbotTab:CreateSection("Aimbot")
+-- FOV Circle
+local circle = Drawing.new("Circle")
+circle.Visible = true
+circle.Radius = AimbotConfig.FOV
+circle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+circle.Color = Color3.fromRGB(0,255,0)
+circle.Thickness = 1
+circle.Filled = false
 
-AimbotTab:CreateToggle({Name="Enable Aimbot",CurrentValue=true,Callback=function(v) AimbotConfig.Enabled=v end})
-AimbotTab:CreateDropdown({Name="Target Part",Options={"Head","HumanoidRootPart"},CurrentOption="Head",Callback=function(v) AimbotConfig.TargetPart=v end})
-AimbotTab:CreateSlider({Name="FOV",Range={50,300},Increment=10,CurrentValue=100,Callback=function(v) AimbotConfig.FOV=v end})
-AimbotTab:CreateToggle({Name="Wall Check",CurrentValue=true,Callback=function(v) AimbotConfig.WallCheck=v end})
-
-AimbotTab:CreateSection("Hitbox")
-AimbotTab:CreateToggle({Name="Enable Hitbox",CurrentValue=true,Callback=function(v) AimbotConfig.HitboxEnabled=v end})
-AimbotTab:CreateSlider({Name="Hitbox Size",Range={2,10},Increment=1,CurrentValue=4,Callback=function(v) AimbotConfig.HitboxSize=Vector3.new(v,v,v) end})
-
---==================================================
--- UI TAB: VISUAL (ESP)
---==================================================
-local VisualTab = Window:CreateTab("Visual", 4483362458)
-VisualTab:CreateSection("ESP System")
-VisualTab:CreateToggle({Name="ESP Box",CurrentValue=false,Callback=function(v) ESPConfig.Box=v end})
-VisualTab:CreateToggle({Name="ESP Skeleton",CurrentValue=false,Callback=function(v) ESPConfig.Skeleton=v end})
-VisualTab:CreateToggle({Name="ESP Line",CurrentValue=false,Callback=function(v) ESPConfig.Line=v end})
-VisualTab:CreateToggle({Name="ESP Name",CurrentValue=false,Callback=function(v) ESPConfig.Name=v end})
-VisualTab:CreateToggle({Name="ESP Distance",CurrentValue=false,Callback=function(v) ESPConfig.Distance=v end})
-VisualTab:CreateToggle({Name="ESP Health Bar",CurrentValue=false,Callback=function(v) ESPConfig.HealthBar=v end})
-
---==================================================
--- FOV CIRCLE
---==================================================
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Thickness = 1
-FOVCircle.Filled = false
-FOVCircle.Color = Color3.fromRGB(0,255,0)
-
---==================================================
--- TEAM COLOR FUNCTION (แก้ไขแล้ว)
---==================================================
-local function getTeamColor(player)
-    if player.Team and LocalPlayer.Team then
-        if player.Team == LocalPlayer.Team then
-            return Color3.fromRGB(0,255,0) -- ทีมเรา = เขียว
-        else
-            return Color3.fromRGB(255,0,0) -- ทีมตรงข้าม = แดง
-        end
-    else
-        return Color3.fromRGB(255,255,255) -- ไม่มีทีม = ขาว
-    end
-end
-
---==================================================
--- VISIBILITY CHECK
---==================================================
+-- Visibility check
 local function IsVisible(part)
-    local params = RaycastParams.new()
-    params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-    params.FilterType = Enum.RaycastFilterType.Blacklist
-    local result = workspace:Raycast(
-        Camera.CFrame.Position,
-        (part.Position - Camera.CFrame.Position).Unit * 500,
-        params
-    )
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local result = workspace:Raycast(Camera.CFrame.Position,(part.Position - Camera.CFrame.Position).Unit*500,rayParams)
     return result and result.Instance:IsDescendantOf(part.Parent)
 end
 
---==================================================
--- GET CLOSEST ENEMY
---==================================================
+-- Closest enemy
 local function GetClosestEnemy()
     local closest, shortest = nil, AimbotConfig.FOV
-    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    local center = Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
+    local localHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not localHRP then return nil end
     for _,plr in ipairs(Players:GetPlayers()) do
-        if plr~=LocalPlayer and plr.Character and plr.Character:FindFirstChild(AimbotConfig.TargetPart) then
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(AimbotConfig.TargetPart) then
             local hum = plr.Character:FindFirstChildOfClass("Humanoid")
             local part = plr.Character[AimbotConfig.TargetPart]
             if hum and hum.Health>0 then
                 if AimbotConfig.TeamCheck and plr.Team==LocalPlayer.Team then continue end
                 if AimbotConfig.WallCheck and not IsVisible(part) then continue end
+                local distance3D = (part.Position - localHRP.Position).Magnitude
+                if distance3D > 300 then continue end
                 local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 if onScreen then
                     local dist = (Vector2.new(pos.X,pos.Y)-center).Magnitude
-                    if dist<shortest then
+                    if dist < shortest then
                         shortest = dist
                         closest = part
                     end
@@ -137,45 +76,147 @@ local function GetClosestEnemy()
     return closest
 end
 
---==================================================
--- APPLY HITBOX
---==================================================
-local function ApplyHitbox(char)
-    if not AimbotConfig.HitboxEnabled then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        hrp.Size = AimbotConfig.HitboxSize
-        hrp.Transparency = 0.7
-        hrp.Material = Enum.Material.Neon
-        hrp.Color = Color3.fromRGB(255,0,0)
+-- Auto lock
+RunService.RenderStepped:Connect(function()
+    if AimbotConfig.Enabled and AimbotConfig.AutoLock then
+        local target = GetClosestEnemy()
+        if target then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position,target.Position)
+        end
+    end
+end)
+
+-- Hitbox apply
+local function applyHitbox(char)
+    local plr = Players:GetPlayerFromCharacter(char)
+    if plr and (not AimbotConfig.TeamCheck or plr.Team ~= LocalPlayer.Team) then
+        local function tryApply()
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.Size = hitboxSize
+                hrp.Transparency = 0.7
+                hrp.Material = Enum.Material.Neon
+                hrp.Color = Color3.new(1,0,0)
+            else
+                task.delay(0.1, tryApply)
+            end
+        end
+        tryApply()
     end
 end
 
---==================================================
--- CREATE ESP
---==================================================
+Players.PlayerAdded:Connect(function(plr)
+    plr.CharacterAdded:Connect(applyHitbox)
+end)
+
+for _,plr in ipairs(Players:GetPlayers()) do
+    if plr.Character then applyHitbox(plr.Character) end
+    plr.CharacterAdded:Connect(applyHitbox)
+end
+
+-- ================= UI AIMBOT =================
+local AimTab = Window:CreateTab("Aimbot",4483362458)
+AimTab:CreateSection("Aimbot & Hitbox")
+
+AimTab:CreateToggle({Name="เปิด Aimbot",CurrentValue=true,Callback=function(v) AimbotConfig.Enabled=v end})
+AimTab:CreateToggle({Name="ล็อกกล้องอัตโนมัติ",CurrentValue=true,Callback=function(v) AimbotConfig.AutoLock=v end})
+AimTab:CreateDropdown({
+    Name="เล็งส่วน",
+    Options={"Head","HumanoidRootPart"},
+    CurrentOption="Head",
+    Callback=function(v) AimbotConfig.TargetPart=v end
+})
+AimTab:CreateSlider({Name="ขนาด Hitbox",Min=1,Max=10,Increment=1,CurrentValue=hitboxSize.X,Callback=function(v)
+    hitboxSize = Vector3.new(v,v,v)
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if plr.Character then applyHitbox(plr.Character) end
+    end
+end})
+
+-- ==================================================
+-- ================== ESP ==========================
+-- ==================================================
+local VisualTab = Window:CreateTab("Visual",4483362458)
+VisualTab:CreateSection("ESP System")
+
+local ESPConfig = {
+    Box=false,
+    Skeleton=false,
+    Line=false,
+    Name=false,
+    Distance=false,
+    HealthBar=false
+}
+
+local ESPObjects = {}
+local HealthBarObjects = {}
+
+local function getTeamColor(player)
+    if player.TeamColor == nil then return Color3.fromRGB(255,0,0) end
+    if player.Team == LocalPlayer.Team then
+        return player.TeamColor.Color
+    else
+        return player.TeamColor.Color
+    end
+end
+
 local function createESP(player)
     if player==LocalPlayer then return end
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
-    local obj={}
-    obj.Box = Drawing.new("Square"); obj.Box.Thickness=1; obj.Box.Filled=false; obj.Box.Visible=true
-    obj.Skeleton={}
-    local parts={"Head","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot"}
-    for _,p in ipairs(parts) do
-        local line = Drawing.new("Line"); line.Thickness=1; line.Visible=true
-        table.insert(obj.Skeleton,{p,line})
+    local objects = {}
+
+    -- Box
+    objects.Box = Drawing.new("Square")
+    objects.Box.Thickness = 1
+    objects.Box.Filled = false
+    objects.Box.Visible = true
+
+    -- Skeleton
+    objects.Skeleton = {}
+    local parts = {"Head","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm","LeftHand",
+                   "RightUpperArm","RightLowerArm","RightHand",
+                   "LeftUpperLeg","LeftLowerLeg","LeftFoot",
+                   "RightUpperLeg","RightLowerLeg","RightFoot"}
+    for _, partName in ipairs(parts) do
+        local line = Drawing.new("Line")
+        line.Thickness = 1
+        line.Visible = true
+        table.insert(objects.Skeleton,{partName,line})
     end
-    obj.Line=Drawing.new("Line"); obj.Line.Thickness=1; obj.Line.Visible=true
-    obj.NameText=Drawing.new("Text"); obj.NameText.Size=13; obj.NameText.Center=true; obj.NameText.Outline=true; obj.NameText.Font=2; obj.NameText.Visible=true
-    obj.DistanceText=Drawing.new("Text"); obj.DistanceText.Size=13; obj.DistanceText.Center=true; obj.DistanceText.Outline=true; obj.DistanceText.Font=2; obj.DistanceText.Visible=true
-    ESPObjects[player]=obj
+
+    -- Line
+    objects.Line = Drawing.new("Line")
+    objects.Line.Thickness = 1
+    objects.Line.Visible = true
+
+    -- Name
+    objects.NameText = Drawing.new("Text")
+    objects.NameText.Size = 13
+    objects.NameText.Center = true
+    objects.NameText.Outline = true
+    objects.NameText.Font = 2
+    objects.NameText.Visible = true
+
+    -- Distance
+    objects.DistanceText = Drawing.new("Text")
+    objects.DistanceText.Size = 13
+    objects.DistanceText.Center = true
+    objects.DistanceText.Outline = true
+    objects.DistanceText.Font = 2
+    objects.DistanceText.Visible = true
+
+    ESPObjects[player] = objects
 end
 
 local function removeESP(player)
     if ESPObjects[player] then
-        local obj=ESPObjects[player]
+        local obj = ESPObjects[player]
         for k,v in pairs(obj) do
-            if type(v)=="table" then for _,l in ipairs(v) do l[2]:Remove() end else v:Remove() end
+            if type(v)=="table" then
+                for _,l in ipairs(v) do l[2]:Remove() end
+            else
+                v:Remove()
+            end
         end
         ESPObjects[player]=nil
     end
@@ -184,119 +225,142 @@ end
 local function createHealthBar(player)
     if player==LocalPlayer then return end
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
-    local bar = Drawing.new("Square"); bar.Thickness=1; bar.Filled=true; bar.Visible=true
+    local bar = Drawing.new("Square")
+    bar.Thickness = 1
+    bar.Filled = true
+    bar.Visible = true
     HealthBarObjects[player]=bar
 end
 
 local function removeHealthBar(player)
-    if HealthBarObjects[player] then HealthBarObjects[player]:Remove() HealthBarObjects[player]=nil end
+    if HealthBarObjects[player] then
+        HealthBarObjects[player]:Remove()
+        HealthBarObjects[player]=nil
+    end
 end
 
---==================================================
--- UPDATE ESP LOOP
---==================================================
 local function updateESP()
+    local localHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not localHRP then return end
     for player,obj in pairs(ESPObjects) do
-        local char=player.Character
-        local hum=char and char:FindFirstChildOfClass("Humanoid")
-        local hrp=char and char:FindFirstChild("HumanoidRootPart")
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if hrp and hum then
-            local pos,onScreen = Camera:WorldToViewportPoint(hrp.Position)
-            local distance=(Camera.CFrame.Position-hrp.Position).Magnitude
-            local color = getTeamColor(player)
-            -- Box
-            if obj.Box then
-                local size = math.clamp(3000/distance,20,80)
-                obj.Box.Size=Vector2.new(size,size)
-                obj.Box.Position=Vector2.new(pos.X-size/2,pos.Y-size/2)
-                obj.Box.Color=color
-                obj.Box.Visible=ESPConfig.Box and onScreen
+            local distance3D = (hrp.Position - localHRP.Position).Magnitude
+            if distance3D > 300 then
+                for k,v in pairs(obj) do
+                    if type(v)=="table" then for _,l in ipairs(v) do l[2].Visible=false end else v.Visible=false end
+                end
+                if HealthBarObjects[player] then HealthBarObjects[player].Visible=false end
+                continue
             end
+
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local color = getTeamColor(player)
+
+            if obj.Box then
+                local size = math.clamp(3000/distance3D,20,80)
+                obj.Box.Size = Vector2.new(size,size)
+                obj.Box.Position = Vector2.new(pos.X - size/2,pos.Y - size/2)
+                obj.Box.Color = color
+                obj.Box.Visible = ESPConfig.Box and onScreen
+            end
+
             -- Skeleton
             if obj.Skeleton and ESPConfig.Skeleton then
                 local function getPartPos(name)
-                    local p=char:FindFirstChild(name)
+                    local p = char:FindFirstChild(name)
                     if p then
-                        local screenPos, onscreen=Camera:WorldToViewportPoint(p.Position)
-                        return Vector2.new(screenPos.X, screenPos.Y), onscreen
+                        local screenPos, onscreen = Camera:WorldToViewportPoint(p.Position)
+                        return Vector2.new(screenPos.X,screenPos.Y),onscreen
                     end
                     return nil,false
                 end
-                local head,_=getPartPos("Head"); local upperTorso,_=getPartPos("UpperTorso"); local lowerTorso,_=getPartPos("LowerTorso")
-                local leftUpperArm,_=getPartPos("LeftUpperArm"); local leftLowerArm,_=getPartPos("LeftLowerArm"); local leftHand,_=getPartPos("LeftHand")
-                local rightUpperArm,_=getPartPos("RightUpperArm"); local rightLowerArm,_=getPartPos("RightLowerArm"); local rightHand,_=getPartPos("RightHand")
-                local leftUpperLeg,_=getPartPos("LeftUpperLeg"); local leftLowerLeg,_=getPartPos("LeftLowerLeg"); local leftFoot,_=getPartPos("LeftFoot")
-                local rightUpperLeg,_=getPartPos("RightUpperLeg"); local rightLowerLeg,_=getPartPos("RightLowerLeg"); local rightFoot,_=getPartPos("RightFoot")
-                local lines=obj.Skeleton
-                lines[1][2].From=head or Vector2.new(0,0); lines[1][2].To=upperTorso or Vector2.new(0,0); lines[1][2].Color=color; lines[1][2].Visible=onScreen and ESPConfig.Skeleton
-                lines[2][2].From=upperTorso or Vector2.new(0,0); lines[2][2].To=lowerTorso or Vector2.new(0,0); lines[2][2].Color=color; lines[2][2].Visible=onScreen and ESPConfig.Skeleton
-                for i=3,14 do lines[i][2].Color=color; lines[i][2].Visible=onScreen and ESPConfig.Skeleton end
-            else if obj.Skeleton then for _,l in ipairs(obj.Skeleton) do l[2].Visible=false end end end
-            -- Line
+                local head,_ = getPartPos("Head")
+                local upperTorso,_ = getPartPos("UpperTorso")
+                local lowerTorso,_ = getPartPos("LowerTorso")
+                local lines = obj.Skeleton
+                lines[1][2].From=head or Vector2.new(0,0)
+                lines[1][2].To=upperTorso or Vector2.new(0,0)
+                lines[1][2].Color=color
+                lines[1][2].Visible=onScreen and ESPConfig.Skeleton
+                lines[2][2].From=upperTorso or Vector2.new(0,0)
+                lines[2][2].To=lowerTorso or Vector2.new(0,0)
+                lines[2][2].Color=color
+                lines[2][2].Visible=onScreen and ESPConfig.Skeleton
+                for i=3,14 do
+                    lines[i][2].Color=color
+                    lines[i][2].Visible=onScreen and ESPConfig.Skeleton
+                end
+            else
+                if obj.Skeleton then
+                    for _,l in ipairs(obj.Skeleton) do l[2].Visible=false end
+                end
+            end
+
             if obj.Line then
-                local screenCenter=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
-                obj.Line.From=screenCenter
+                local center = Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
+                obj.Line.From=center
                 obj.Line.To=Vector2.new(pos.X,pos.Y)
                 obj.Line.Color=color
                 obj.Line.Visible=ESPConfig.Line and onScreen
             end
-            -- Name
-            if obj.NameText then obj.NameText.Text=player.Name; obj.NameText.Position=Vector2.new(pos.X,pos.Y-20); obj.NameText.Color=color; obj.NameText.Visible=ESPConfig.Name and onScreen end
-            -- Distance
-            if obj.DistanceText then obj.DistanceText.Text=string.format("[%.0f]",distance); obj.DistanceText.Position=Vector2.new(pos.X,pos.Y-10); obj.DistanceText.Color=color; obj.DistanceText.Visible=ESPConfig.Distance and onScreen end
+
+            if obj.NameText then
+                obj.NameText.Text=player.Name
+                obj.NameText.Position=Vector2.new(pos.X,pos.Y-20)
+                obj.NameText.Color=color
+                obj.NameText.Visible=ESPConfig.Name and onScreen
+            end
+
+            if obj.DistanceText then
+                obj.DistanceText.Text=string.format("[%.0f]",distance3D)
+                obj.DistanceText.Position=Vector2.new(pos.X,pos.Y-10)
+                obj.DistanceText.Color=color
+                obj.DistanceText.Visible=ESPConfig.Distance and onScreen
+            end
+
+            if HealthBarObjects[player] and ESPConfig.HealthBar then
+                local bar = HealthBarObjects[player]
+                local barHeight = math.clamp(3000/distance3D,20,80)
+                local barWidth = 4
+                local hpPercent = hum.Health/hum.MaxHealth
+                bar.Size = Vector2.new(barWidth, barHeight*hpPercent)
+                bar.Position = Vector2.new(pos.X+25,pos.Y+barHeight*(1-hpPercent)/2 - barHeight/2)
+                bar.Color=color
+                bar.Visible=onScreen
+            end
         else
             for k,v in pairs(obj) do if type(v)=="table" then for _,l in ipairs(v) do l[2].Visible=false end else v.Visible=false end end
+            if HealthBarObjects[player] then HealthBarObjects[player].Visible=false end
         end
     end
-    -- HealthBar ข้างตัวแนวตรง
-    for player,bar in pairs(HealthBarObjects) do
-        local char=player.Character
-        local hum=char and char:FindFirstChildOfClass("Humanoid")
-        local hrp=char and char:FindFirstChild("HumanoidRootPart")
-        if hrp and hum then
-            local pos,onScreen = Camera:WorldToViewportPoint(hrp.Position)
-            local distance=(Camera.CFrame.Position-hrp.Position).Magnitude
-            local barHeight=math.clamp(3000/distance,20,80)
-            local barWidth=4
-            local hpPercent = hum.Health/hum.MaxHealth
-            bar.Size = Vector2.new(barWidth, barHeight*hpPercent)
-            bar.Position = Vector2.new(pos.X+25, pos.Y+barHeight*(1-hpPercent)/2 - barHeight/2)
-            bar.Color = getTeamColor(player)
-            bar.Visible=ESPConfig.HealthBar and onScreen
-        else bar.Visible=false end
-    end
 end
 
---==================================================
--- ENABLE ESP LOOP
---==================================================
-for _,plr in ipairs(Players:GetPlayers()) do
-    createESP(plr); createHealthBar(plr)
-    if plr.Character then ApplyHitbox(plr.Character) end
-    plr.CharacterAdded:Connect(ApplyHitbox)
+-- Enable / Disable ESP
+local function enableESP()
+    for _,plr in ipairs(Players:GetPlayers()) do
+        createESP(plr)
+        createHealthBar(plr)
+    end
+    RunService.RenderStepped:Connect(updateESP)
+    Players.PlayerAdded:Connect(function(plr)
+        createESP(plr)
+        createHealthBar(plr)
+    end)
+    Players.PlayerRemoving:Connect(function(plr)
+        removeESP(plr)
+        removeHealthBar(plr)
+    end)
 end
 
-Players.PlayerAdded:Connect(function(plr)
-    createESP(plr); createHealthBar(plr)
-    plr.CharacterAdded:Connect(ApplyHitbox)
-end)
-Players.PlayerRemoving:Connect(function(plr)
-    removeESP(plr); removeHealthBar(plr)
-end)
+-- ================= UI ESP =================
+VisualTab:CreateToggle({Name="ESP Box",CurrentValue=false,Callback=function(v) ESPConfig.Box=v end})
+VisualTab:CreateToggle({Name="ESP Skeleton",CurrentValue=false,Callback=function(v) ESPConfig.Skeleton=v end})
+VisualTab:CreateToggle({Name="ESP Line",CurrentValue=false,Callback=function(v) ESPConfig.Line=v end})
+VisualTab:CreateToggle({Name="ESP Name",CurrentValue=false,Callback=function(v) ESPConfig.Name=v end})
+VisualTab:CreateToggle({Name="ESP Distance",CurrentValue=false,Callback=function(v) ESPConfig.Distance=v end})
+VisualTab:CreateToggle({Name="ESP HealthBar",CurrentValue=false,Callback=function(v) ESPConfig.HealthBar=v end})
 
-RunService.RenderStepped:Connect(function()
-    -- FOV Circle
-    local center=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
-    FOVCircle.Position=center
-    FOVCircle.Radius=AimbotConfig.FOV
-    FOVCircle.Visible=AimbotConfig.Enabled
-
-    -- Aimbot
-    if AimbotConfig.Enabled then
-        local target=GetClosestEnemy()
-        if target then Camera.CFrame=CFrame.new(Camera.CFrame.Position,target.Position) end
-    end
-
-    -- Update ESP
-    updateESP()
-end)
+enableESP()
