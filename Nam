@@ -1,5 +1,5 @@
 --==================================================
--- LOAD RAYFIELD (บนสุดจริง)
+-- LOAD RAYFIELD (บนสุด)
 --==================================================
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
@@ -116,18 +116,17 @@ local function GetClosestEnemy()
     local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
     for _,plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(AimbotConfig.TargetPart) then
-            if not AimbotConfig.TeamCheck or plr.Team ~= LocalPlayer.Team then
-                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-                local part = plr.Character[AimbotConfig.TargetPart]
-                if hum and hum.Health>0 then
-                    if AimbotConfig.WallCheck and not IsVisible(part) then continue end
-                    local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                    if onScreen then
-                        local dist = (Vector2.new(pos.X,pos.Y)-center).Magnitude
-                        if dist<shortest then
-                            shortest=dist
-                            closest=part
-                        end
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+            local part = plr.Character[AimbotConfig.TargetPart]
+            if hum and hum.Health>0 then
+                if AimbotConfig.TeamCheck and plr.Team == LocalPlayer.Team then continue end
+                if AimbotConfig.WallCheck and not IsVisible(part) then continue end
+                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    local dist = (Vector2.new(pos.X,pos.Y)-center).Magnitude
+                    if dist<shortest then
+                        shortest=dist
+                        closest=part
                     end
                 end
             end
@@ -142,7 +141,7 @@ end
 local function ApplyHitbox(char)
     if not AimbotConfig.HitboxEnabled then return end
     local plr = Players:GetPlayerFromCharacter(char)
-    if plr and (not AimbotConfig.TeamCheck or plr.Team ~= LocalPlayer.Team) then
+    if plr then
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if hrp then
             hrp.Size = AimbotConfig.HitboxSize
@@ -162,45 +161,36 @@ local ESPConfig = {
 local ESPObjects = {}
 local HealthBarObjects = {}
 
+-- ฟังก์ชันสีทีม dynamic
 local function getTeamColor(player)
-    if player.Team==LocalPlayer.Team then return Color3.fromRGB(0,255,0)
-    else return Color3.fromRGB(255,0,0) end
+    if player.Team then
+        local tName = player.Team.Name
+        if tName=="TeamA" then return Color3.fromRGB(0,255,0)
+        elseif tName=="TeamB" then return Color3.fromRGB(255,0,0)
+        elseif tName=="TeamC" then return Color3.fromRGB(255,255,255)
+        else return Color3.fromRGB(0,0,0) end
+    else
+        return Color3.fromRGB(0,0,0)
+    end
 end
 
+--==================================================
+-- CREATE ESP
+--==================================================
 local function createESP(player)
     if player==LocalPlayer then return end
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
     local obj={}
-    obj.Box = Drawing.new("Square")
-    obj.Box.Thickness=1
-    obj.Box.Filled=false
-    obj.Box.Visible=true
+    obj.Box = Drawing.new("Square"); obj.Box.Thickness=1; obj.Box.Filled=false; obj.Box.Visible=true
     obj.Skeleton={}
-    local parts={"Head","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm","LeftHand",
-        "RightUpperArm","RightLowerArm","RightHand",
-        "LeftUpperLeg","LeftLowerLeg","LeftFoot",
-        "RightUpperLeg","RightLowerLeg","RightFoot"}
+    local parts={"Head","UpperTorso","LowerTorso","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot"}
     for _,p in ipairs(parts) do
-        local line = Drawing.new("Line")
-        line.Thickness=1
-        line.Visible=true
+        local line = Drawing.new("Line"); line.Thickness=1; line.Visible=true
         table.insert(obj.Skeleton,{p,line})
     end
-    obj.Line=Drawing.new("Line")
-    obj.Line.Thickness=1
-    obj.Line.Visible=true
-    obj.NameText=Drawing.new("Text")
-    obj.NameText.Size=13
-    obj.NameText.Center=true
-    obj.NameText.Outline=true
-    obj.NameText.Font=2
-    obj.NameText.Visible=true
-    obj.DistanceText=Drawing.new("Text")
-    obj.DistanceText.Size=13
-    obj.DistanceText.Center=true
-    obj.DistanceText.Outline=true
-    obj.DistanceText.Font=2
-    obj.DistanceText.Visible=true
+    obj.Line=Drawing.new("Line"); obj.Line.Thickness=1; obj.Line.Visible=true
+    obj.NameText=Drawing.new("Text"); obj.NameText.Size=13; obj.NameText.Center=true; obj.NameText.Outline=true; obj.NameText.Font=2; obj.NameText.Visible=true
+    obj.DistanceText=Drawing.new("Text"); obj.DistanceText.Size=13; obj.DistanceText.Center=true; obj.DistanceText.Outline=true; obj.DistanceText.Font=2; obj.DistanceText.Visible=true
     ESPObjects[player]=obj
 end
 
@@ -208,9 +198,7 @@ local function removeESP(player)
     if ESPObjects[player] then
         local obj=ESPObjects[player]
         for k,v in pairs(obj) do
-            if type(v)=="table" then
-                for _,l in ipairs(v) do l[2]:Remove() end
-            else v:Remove() end
+            if type(v)=="table" then for _,l in ipairs(v) do l[2]:Remove() end else v:Remove() end
         end
         ESPObjects[player]=nil
     end
@@ -219,29 +207,13 @@ end
 local function createHealthBar(player)
     if player==LocalPlayer then return end
     if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
-    local bar = Drawing.new("Square")
-    bar.Thickness=1
-    bar.Filled=true
-    bar.Visible=true
+    local bar = Drawing.new("Square"); bar.Thickness=1; bar.Filled=true; bar.Visible=true
     HealthBarObjects[player]=bar
 end
 
 local function removeHealthBar(player)
     if HealthBarObjects[player] then HealthBarObjects[player]:Remove() HealthBarObjects[player]=nil end
 end
-
---==================================================
--- ESP TAB
---==================================================
-local VisualTab = Window:CreateTab("Visual",4483362458)
-VisualTab:CreateSection("ESP System")
-
-VisualTab:CreateToggle({Name="ESP Box",CurrentValue=false,Callback=function(v) ESPConfig.Box=v end})
-VisualTab:CreateToggle({Name="ESP Skeleton",CurrentValue=false,Callback=function(v) ESPConfig.Skeleton=v end})
-VisualTab:CreateToggle({Name="ESP Line",CurrentValue=false,Callback=function(v) ESPConfig.Line=v end})
-VisualTab:CreateToggle({Name="ESP Name",CurrentValue=false,Callback=function(v) ESPConfig.Name=v end})
-VisualTab:CreateToggle({Name="ESP Distance",CurrentValue=false,Callback=function(v) ESPConfig.Distance=v end})
-VisualTab:CreateToggle({Name="ESP Health Bar",CurrentValue=false,Callback=function(v) ESPConfig.HealthBar=v end})
 
 --==================================================
 -- ESP UPDATE LOOP
@@ -273,37 +245,16 @@ local function updateESP()
                     end
                     return nil,false
                 end
-                local head,_=getPartPos("Head")
-                local upperTorso,_=getPartPos("UpperTorso")
-                local lowerTorso,_=getPartPos("LowerTorso")
-                local leftUpperArm,_=getPartPos("LeftUpperArm")
-                local leftLowerArm,_=getPartPos("LeftLowerArm")
-                local leftHand,_=getPartPos("LeftHand")
-                local rightUpperArm,_=getPartPos("RightUpperArm")
-                local rightLowerArm,_=getPartPos("RightLowerArm")
-                local rightHand,_=getPartPos("RightHand")
-                local leftUpperLeg,_=getPartPos("LeftUpperLeg")
-                local leftLowerLeg,_=getPartPos("LeftLowerLeg")
-                local leftFoot,_=getPartPos("LeftFoot")
-                local rightUpperLeg,_=getPartPos("RightUpperLeg")
-                local rightLowerLeg,_=getPartPos("RightLowerLeg")
-                local rightFoot,_=getPartPos("RightFoot")
+                local head,_=getPartPos("Head"); local upperTorso,_=getPartPos("UpperTorso"); local lowerTorso,_=getPartPos("LowerTorso")
+                local leftUpperArm,_=getPartPos("LeftUpperArm"); local leftLowerArm,_=getPartPos("LeftLowerArm"); local leftHand,_=getPartPos("LeftHand")
+                local rightUpperArm,_=getPartPos("RightUpperArm"); local rightLowerArm,_=getPartPos("RightLowerArm"); local rightHand,_=getPartPos("RightHand")
+                local leftUpperLeg,_=getPartPos("LeftUpperLeg"); local leftLowerLeg,_=getPartPos("LeftLowerLeg"); local leftFoot,_=getPartPos("LeftFoot")
+                local rightUpperLeg,_=getPartPos("RightUpperLeg"); local rightLowerLeg,_=getPartPos("RightLowerLeg"); local rightFoot,_=getPartPos("RightFoot")
                 local lines=obj.Skeleton
-                lines[1][2].From=head or Vector2.new(0,0)
-                lines[1][2].To=upperTorso or Vector2.new(0,0)
-                lines[1][2].Color=color
-                lines[1][2].Visible=onScreen and ESPConfig.Skeleton
-                lines[2][2].From=upperTorso or Vector2.new(0,0)
-                lines[2][2].To=lowerTorso or Vector2.new(0,0)
-                lines[2][2].Color=color
-                lines[2][2].Visible=onScreen and ESPConfig.Skeleton
-                for i=3,14 do
-                    lines[i][2].Color=color
-                    lines[i][2].Visible=onScreen and ESPConfig.Skeleton
-                end
-            else
-                if obj.Skeleton then for _,l in ipairs(obj.Skeleton) do l[2].Visible=false end end
-            end
+                lines[1][2].From=head or Vector2.new(0,0); lines[1][2].To=upperTorso or Vector2.new(0,0); lines[1][2].Color=color; lines[1][2].Visible=onScreen and ESPConfig.Skeleton
+                lines[2][2].From=upperTorso or Vector2.new(0,0); lines[2][2].To=lowerTorso or Vector2.new(0,0); lines[2][2].Color=color; lines[2][2].Visible=onScreen and ESPConfig.Skeleton
+                for i=3,14 do lines[i][2].Color=color; lines[i][2].Visible=onScreen and ESPConfig.Skeleton end
+            else if obj.Skeleton then for _,l in ipairs(obj.Skeleton) do l[2].Visible=false end end end
             -- Line
             if obj.Line then
                 local screenCenter=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
@@ -313,25 +264,11 @@ local function updateESP()
                 obj.Line.Visible=ESPConfig.Line and onScreen
             end
             -- Name
-            if obj.NameText then
-                obj.NameText.Text=player.Name
-                obj.NameText.Position=Vector2.new(pos.X,pos.Y-20)
-                obj.NameText.Color=color
-                obj.NameText.Visible=ESPConfig.Name and onScreen
-            end
+            if obj.NameText then obj.NameText.Text=player.Name; obj.NameText.Position=Vector2.new(pos.X,pos.Y-20); obj.NameText.Color=color; obj.NameText.Visible=ESPConfig.Name and onScreen end
             -- Distance
-            if obj.DistanceText then
-                obj.DistanceText.Text=string.format("[%.0f]",distance)
-                obj.DistanceText.Position=Vector2.new(pos.X,pos.Y-10)
-                obj.DistanceText.Color=color
-                obj.DistanceText.Visible=ESPConfig.Distance and onScreen
-            end
+            if obj.DistanceText then obj.DistanceText.Text=string.format("[%.0f]",distance); obj.DistanceText.Position=Vector2.new(pos.X,pos.Y-10); obj.DistanceText.Color=color; obj.DistanceText.Visible=ESPConfig.Distance and onScreen end
         else
-            for k,v in pairs(obj) do
-                if type(v)=="table" then
-                    for _,l in ipairs(v) do l[2].Visible=false end
-                else v.Visible=false end
-            end
+            for k,v in pairs(obj) do if type(v)=="table" then for _,l in ipairs(v) do l[2].Visible=false end else v.Visible=false end end
         end
     end
     -- HealthBar ข้างตัวแนวตรง
@@ -358,25 +295,10 @@ end
 --==================================================
 local ESPConnection
 local function enableESP()
-    for _,plr in ipairs(Players:GetPlayers()) do
-        createESP(plr)
-        createHealthBar(plr)
-    end
+    for _,plr in ipairs(Players:GetPlayers()) do createESP(plr); createHealthBar(plr) end
     ESPConnection = RunService.RenderStepped:Connect(updateESP)
-    Players.PlayerAdded:Connect(function(p)
-        createESP(p)
-        createHealthBar(p)
-    end)
-    Players.PlayerRemoving:Connect(function(p)
-        removeESP(p)
-        removeHealthBar(p)
-    end)
-end
-
-local function disableESP()
-    if ESPConnection then ESPConnection:Disconnect() ESPConnection=nil end
-    for p in pairs(ESPObjects) do removeESP(p) end
-    for p in pairs(HealthBarObjects) do removeHealthBar(p) end
+    Players.PlayerAdded:Connect(function(p) createESP(p); createHealthBar(p) end)
+    Players.PlayerRemoving:Connect(function(p) removeESP(p); removeHealthBar(p) end)
 end
 
 enableESP()
@@ -385,18 +307,14 @@ enableESP()
 -- Aimbot RENDER LOOP
 --==================================================
 RunService.RenderStepped:Connect(function()
-    -- FOV
     local center=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
     FOVCircle.Position=center
     FOVCircle.Radius=AimbotConfig.FOV
     FOVCircle.Visible=AimbotConfig.Enabled
 
-    -- Aimbot
     if AimbotConfig.Enabled then
         local target=GetClosestEnemy()
-        if target then
-            Camera.CFrame=CFrame.new(Camera.CFrame.Position,target.Position)
-        end
+        if target then Camera.CFrame=CFrame.new(Camera.CFrame.Position,target.Position) end
     end
 end)
 
@@ -407,7 +325,6 @@ for _,plr in ipairs(Players:GetPlayers()) do
     if plr.Character then ApplyHitbox(plr.Character) end
     plr.CharacterAdded:Connect(ApplyHitbox)
 end
-
 Players.PlayerAdded:Connect(function(plr)
     plr.CharacterAdded:Connect(ApplyHitbox)
 end)
