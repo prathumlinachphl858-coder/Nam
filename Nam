@@ -37,53 +37,40 @@ local AimbotConfig = {
 }
 
 --==================================================
--- AIMBOT TAB
+-- VISUAL / ESP CONFIG
+--==================================================
+local ESPConfig = {
+    Box=false, Skeleton=false, Line=false, Name=false, Distance=false, HealthBar=false
+}
+local ESPObjects = {}
+local HealthBarObjects = {}
+
+--==================================================
+-- UI TAB: AIMBOT
 --==================================================
 local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
 AimbotTab:CreateSection("Aimbot")
 
-AimbotTab:CreateToggle({
-    Name = "Enable Aimbot",
-    CurrentValue = true,
-    Callback = function(v) AimbotConfig.Enabled = v end
-})
-
-AimbotTab:CreateDropdown({
-    Name = "Target Part",
-    Options = {"Head","HumanoidRootPart"},
-    CurrentOption = "Head",
-    Callback = function(v) AimbotConfig.TargetPart = v end
-})
-
-AimbotTab:CreateSlider({
-    Name = "FOV",
-    Range = {50,300},
-    Increment = 10,
-    CurrentValue = 100,
-    Callback = function(v) AimbotConfig.FOV = v end
-})
-
-AimbotTab:CreateToggle({
-    Name = "Wall Check",
-    CurrentValue = true,
-    Callback = function(v) AimbotConfig.WallCheck = v end
-})
+AimbotTab:CreateToggle({Name="Enable Aimbot",CurrentValue=true,Callback=function(v) AimbotConfig.Enabled=v end})
+AimbotTab:CreateDropdown({Name="Target Part",Options={"Head","HumanoidRootPart"},CurrentOption="Head",Callback=function(v) AimbotConfig.TargetPart=v end})
+AimbotTab:CreateSlider({Name="FOV",Range={50,300},Increment=10,CurrentValue=100,Callback=function(v) AimbotConfig.FOV=v end})
+AimbotTab:CreateToggle({Name="Wall Check",CurrentValue=true,Callback=function(v) AimbotConfig.WallCheck=v end})
 
 AimbotTab:CreateSection("Hitbox")
+AimbotTab:CreateToggle({Name="Enable Hitbox",CurrentValue=true,Callback=function(v) AimbotConfig.HitboxEnabled=v end})
+AimbotTab:CreateSlider({Name="Hitbox Size",Range={2,10},Increment=1,CurrentValue=4,Callback=function(v) AimbotConfig.HitboxSize=Vector3.new(v,v,v) end})
 
-AimbotTab:CreateToggle({
-    Name = "Enable Hitbox",
-    CurrentValue = true,
-    Callback = function(v) AimbotConfig.HitboxEnabled = v end
-})
-
-AimbotTab:CreateSlider({
-    Name = "Hitbox Size",
-    Range = {2,10},
-    Increment = 1,
-    CurrentValue = 4,
-    Callback = function(v) AimbotConfig.HitboxSize = Vector3.new(v,v,v) end
-})
+--==================================================
+-- UI TAB: VISUAL (ESP)
+--==================================================
+local VisualTab = Window:CreateTab("Visual", 4483362458)
+VisualTab:CreateSection("ESP System")
+VisualTab:CreateToggle({Name="ESP Box",CurrentValue=false,Callback=function(v) ESPConfig.Box=v end})
+VisualTab:CreateToggle({Name="ESP Skeleton",CurrentValue=false,Callback=function(v) ESPConfig.Skeleton=v end})
+VisualTab:CreateToggle({Name="ESP Line",CurrentValue=false,Callback=function(v) ESPConfig.Line=v end})
+VisualTab:CreateToggle({Name="ESP Name",CurrentValue=false,Callback=function(v) ESPConfig.Name=v end})
+VisualTab:CreateToggle({Name="ESP Distance",CurrentValue=false,Callback=function(v) ESPConfig.Distance=v end})
+VisualTab:CreateToggle({Name="ESP Health Bar",CurrentValue=false,Callback=function(v) ESPConfig.HealthBar=v end})
 
 --==================================================
 -- FOV CIRCLE
@@ -92,6 +79,21 @@ local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 1
 FOVCircle.Filled = false
 FOVCircle.Color = Color3.fromRGB(0,255,0)
+
+--==================================================
+-- TEAM COLOR FUNCTION
+--==================================================
+local function getTeamColor(player)
+    if player.Team then
+        local tName = player.Team.Name
+        if tName=="TeamA" then return Color3.fromRGB(0,255,0)
+        elseif tName=="TeamB" then return Color3.fromRGB(255,0,0)
+        elseif tName=="TeamC" then return Color3.fromRGB(255,255,255)
+        else return Color3.fromRGB(0,0,0) end
+    else
+        return Color3.fromRGB(0,0,0)
+    end
+end
 
 --==================================================
 -- VISIBILITY CHECK
@@ -115,18 +117,18 @@ local function GetClosestEnemy()
     local closest, shortest = nil, AimbotConfig.FOV
     local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
     for _,plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild(AimbotConfig.TargetPart) then
+        if plr~=LocalPlayer and plr.Character and plr.Character:FindFirstChild(AimbotConfig.TargetPart) then
             local hum = plr.Character:FindFirstChildOfClass("Humanoid")
             local part = plr.Character[AimbotConfig.TargetPart]
             if hum and hum.Health>0 then
-                if AimbotConfig.TeamCheck and plr.Team == LocalPlayer.Team then continue end
+                if AimbotConfig.TeamCheck and plr.Team==LocalPlayer.Team then continue end
                 if AimbotConfig.WallCheck and not IsVisible(part) then continue end
                 local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 if onScreen then
                     local dist = (Vector2.new(pos.X,pos.Y)-center).Magnitude
                     if dist<shortest then
-                        shortest=dist
-                        closest=part
+                        shortest = dist
+                        closest = part
                     end
                 end
             end
@@ -136,41 +138,16 @@ local function GetClosestEnemy()
 end
 
 --==================================================
--- HITBOX APPLY
+-- APPLY HITBOX
 --==================================================
 local function ApplyHitbox(char)
     if not AimbotConfig.HitboxEnabled then return end
-    local plr = Players:GetPlayerFromCharacter(char)
-    if plr then
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.Size = AimbotConfig.HitboxSize
-            hrp.Transparency = 0.7
-            hrp.Material = Enum.Material.Neon
-            hrp.Color = Color3.fromRGB(255,0,0)
-        end
-    end
-end
-
---==================================================
--- ESP CONFIG
---==================================================
-local ESPConfig = {
-    Box=false, Skeleton=false, Line=false, Name=false, Distance=false, HealthBar=false
-}
-local ESPObjects = {}
-local HealthBarObjects = {}
-
--- ฟังก์ชันสีทีม dynamic
-local function getTeamColor(player)
-    if player.Team then
-        local tName = player.Team.Name
-        if tName=="TeamA" then return Color3.fromRGB(0,255,0)
-        elseif tName=="TeamB" then return Color3.fromRGB(255,0,0)
-        elseif tName=="TeamC" then return Color3.fromRGB(255,255,255)
-        else return Color3.fromRGB(0,0,0) end
-    else
-        return Color3.fromRGB(0,0,0)
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.Size = AimbotConfig.HitboxSize
+        hrp.Transparency = 0.7
+        hrp.Material = Enum.Material.Neon
+        hrp.Color = Color3.fromRGB(255,0,0)
     end
 end
 
@@ -216,7 +193,7 @@ local function removeHealthBar(player)
 end
 
 --==================================================
--- ESP UPDATE LOOP
+-- UPDATE ESP LOOP
 --==================================================
 local function updateESP()
     for player,obj in pairs(ESPObjects) do
@@ -241,7 +218,7 @@ local function updateESP()
                     local p=char:FindFirstChild(name)
                     if p then
                         local screenPos, onscreen=Camera:WorldToViewportPoint(p.Position)
-                        return Vector2.new(screenPos.X,screenPos.Y),onscreen
+                        return Vector2.new(screenPos.X, screenPos.Y), onscreen
                     end
                     return nil,false
                 end
@@ -291,40 +268,35 @@ local function updateESP()
 end
 
 --==================================================
--- LOOPES / PLAYER EVENTS
+-- ENABLE ESP LOOP
 --==================================================
-local ESPConnection
-local function enableESP()
-    for _,plr in ipairs(Players:GetPlayers()) do createESP(plr); createHealthBar(plr) end
-    ESPConnection = RunService.RenderStepped:Connect(updateESP)
-    Players.PlayerAdded:Connect(function(p) createESP(p); createHealthBar(p) end)
-    Players.PlayerRemoving:Connect(function(p) removeESP(p); removeHealthBar(p) end)
+for _,plr in ipairs(Players:GetPlayers()) do
+    createESP(plr); createHealthBar(plr)
+    if plr.Character then ApplyHitbox(plr.Character) end
+    plr.CharacterAdded:Connect(ApplyHitbox)
 end
 
-enableESP()
+Players.PlayerAdded:Connect(function(plr)
+    createESP(plr); createHealthBar(plr)
+    plr.CharacterAdded:Connect(ApplyHitbox)
+end)
+Players.PlayerRemoving:Connect(function(plr)
+    removeESP(plr); removeHealthBar(plr)
+end)
 
---==================================================
--- Aimbot RENDER LOOP
---==================================================
 RunService.RenderStepped:Connect(function()
+    -- FOV Circle
     local center=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
     FOVCircle.Position=center
     FOVCircle.Radius=AimbotConfig.FOV
     FOVCircle.Visible=AimbotConfig.Enabled
 
+    -- Aimbot
     if AimbotConfig.Enabled then
         local target=GetClosestEnemy()
         if target then Camera.CFrame=CFrame.new(Camera.CFrame.Position,target.Position) end
     end
-end)
 
---==================================================
--- CHARACTER EVENTS
---==================================================
-for _,plr in ipairs(Players:GetPlayers()) do
-    if plr.Character then ApplyHitbox(plr.Character) end
-    plr.CharacterAdded:Connect(ApplyHitbox)
-end
-Players.PlayerAdded:Connect(function(plr)
-    plr.CharacterAdded:Connect(ApplyHitbox)
+    -- Update ESP
+    updateESP()
 end)
